@@ -16,7 +16,7 @@ impl Home {
         self.0.trailing_zeros() as u8
     }
 
-    pub fn len(&self) -> u8 {
+    pub fn amount(&self) -> u8 {
         self.0.count_ones() as u8
     }
 

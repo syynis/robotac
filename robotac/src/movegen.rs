@@ -4,7 +4,7 @@ use tac_types::{Card, Color, Square, TacAction, TacMove};
 use crate::{board::Board, hand::Hand};
 
 impl Board {
-    pub fn get_moves(&self, player: Color, hand: Hand) -> Vec<TacMove> {
+    pub fn get_moves(&self, player: Color, hand: &Hand) -> Vec<TacMove> {
         let mut moves = Vec::new();
         let balls = self.balls_with(player);
 

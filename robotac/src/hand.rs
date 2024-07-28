@@ -1,5 +1,6 @@
 use tac_types::Card;
 
+#[derive(Clone)]
 pub struct Hand {
     cards: Vec<Card>,
 }

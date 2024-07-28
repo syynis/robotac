@@ -218,6 +218,7 @@ version = "0.1.0"
 dependencies = [
  "enum-map",
  "itertools",
+ "mcts",
  "rand",
  "tac-types",
 ]

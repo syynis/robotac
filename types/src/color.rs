@@ -18,6 +18,15 @@ impl Color {
         }
     }
 
+    pub fn partner(self) -> Self {
+        match self {
+            Color::Black => Color::Green,
+            Color::Blue => Color::Red,
+            Color::Green => Color::Black,
+            Color::Red => Color::Blue,
+        }
+    }
+
     pub fn home(&self) -> Square {
         match self {
             Color::Black => Square(0),

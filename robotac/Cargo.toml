@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 tac-types = {path = "../types"}
+mcts = {path = "../mcts"}
 enum-map = {workspace = true}
 rand = {workspace = true}
 itertools = {workspace = true}

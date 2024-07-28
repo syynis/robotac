@@ -16,7 +16,7 @@ const DECK: [Card; DECK_SIZE] = {
     ]
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Deck {
     cards: [Card; DECK_SIZE],
     top_idx: usize,

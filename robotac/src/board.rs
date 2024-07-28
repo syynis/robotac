@@ -5,6 +5,7 @@ use tac_types::{BitBoard, Card, Color, Home, Square, TacAction, TacMove};
 
 use crate::{deck::Deck, hand::Hand};
 
+#[derive(Clone)]
 pub struct Board {
     // TODO dont hardcode 4
     balls: [BitBoard; 4],
@@ -124,6 +125,10 @@ impl Board {
         self.player_to_move = self.player_to_move.next()
     }
 
+    pub fn current_player(&self) -> Color {
+        self.player_to_move
+    }
+
     /// Returns a `BitBoard` representing every ball on the board.
     pub fn all_balls(&self) -> BitBoard {
         let colors = [Color::Black, Color::Blue, Color::Green, Color::Red];
@@ -150,6 +155,10 @@ impl Board {
 
     pub fn fresh(&self, color: Color) -> bool {
         self.fresh[color as usize]
+    }
+
+    pub fn hand(&self, color: Color) -> &Hand {
+        &self.hands[color as usize]
     }
 
     /// Returns `true` if the previous player discarded a card.
@@ -276,12 +285,15 @@ mod tests {
     fn can_move() {
         let mut board = Board::default();
         board.xor(Square(10), Color::Black);
-        board.xor(Square(12), Color::Blue);
-        for i in 1..3 {
-            assert_eq!(true, board.can_move(Square(10), Square(10 + i as u8),));
+        for i in 1..64u8 {
+            assert_eq!(true, board.can_move(Square(10), Square(10).add(i)));
         }
-        for i in 3..13 {
-            assert_eq!(false, board.can_move(Square(10), Square(10 + i as u8),));
+        board.xor(Square(12), Color::Blue);
+        for i in 1..3u8 {
+            assert_eq!(true, board.can_move(Square(10), Square(10).add(i)));
+        }
+        for i in 3..13u8 {
+            assert_eq!(false, board.can_move(Square(10), Square(10).add(i)));
         }
     }
 }
