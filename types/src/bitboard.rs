@@ -35,13 +35,17 @@ impl BitBoard {
         other.is_subset(self)
     }
 
-    pub const fn next_square(self) -> Option<Square> {
-        let index = self.0.trailing_zeros() as u8;
+    pub const fn try_next_square(self) -> Option<Square> {
         if !self.is_empty() {
+            let index = self.0.trailing_zeros() as u8;
             Some(Square(index))
         } else {
             None
         }
+    }
+
+    pub const fn next_square(self) -> Square {
+        Square(self.0.trailing_zeros() as u8)
     }
 
     pub fn iter(self) -> BitBoardIter {
@@ -67,7 +71,7 @@ impl Iterator for BitBoardIter {
     type Item = Square;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let square = self.0.next_square();
+        let square = self.0.try_next_square();
         if let Some(square) = square {
             self.0 ^= square.bitboard();
         }

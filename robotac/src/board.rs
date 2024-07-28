@@ -11,6 +11,7 @@ pub struct Board {
     player_to_move: Color,
     homes: [Home; 4],
     outsides: [u8; 4],
+    fresh: [bool; 4],
     discard_flag: bool,
     jester_flag: bool,
     devil_flag: bool,
@@ -40,6 +41,7 @@ impl Default for Board {
             player_to_move: Color::Black,
             homes: [Home::EMPTY; 4],
             outsides: [4; 4],
+            fresh: [true; 4],
             discard_flag: false,
             jester_flag: false,
             devil_flag: false,
@@ -146,6 +148,10 @@ impl Board {
         self.homes[color as usize]
     }
 
+    pub fn fresh(&self, color: Color) -> bool {
+        self.fresh[color as usize]
+    }
+
     /// Returns `true` if the previous player discarded a card.
     pub fn force_discard(&self) -> bool {
         self.discard_flag
@@ -154,10 +160,10 @@ impl Board {
     /// Checks if a ball at a given position can reach its home with a given amount.
     /// Returns the position in the goal if able to.
     pub fn position_in_home(&self, start: Square, amount: u8, color: Color) -> Option<u8> {
-        let dist = start.distance_to_home(color);
+        let min_needed = start.distance_to_home(color) + 1;
         let home_free = self.homes[color as usize].free();
-        if (dist..dist + home_free).contains(&amount) {
-            Some(amount - dist)
+        if (min_needed..min_needed + home_free).contains(&amount) {
+            Some(amount - min_needed)
         } else {
             None
         }
@@ -174,10 +180,11 @@ impl Board {
     }
 
     /// Returns `true` if the there is no ball between `start` and `goal`.
-    /// If the `reverse` is `true` will check the same in in backwards direction
     /// Requires that `start` != `goal`
-    pub fn can_move(&self, start: Square, goal: Square, reverse: bool) -> bool {
-        assert!(start != goal);
+    pub fn can_move(&self, start: Square, goal: Square) -> bool {
+        if start == goal {
+            return false;
+        }
         // TODO investigate if it is worth splitting the computation into two cases
         // Case 1: start < goal
         // Easy case where we just need to check bits between start and goal
@@ -190,22 +197,18 @@ impl Board {
         let start = start.bitboard();
         let goal = goal.bitboard();
 
-        // If we want to go backwards, swap start and goal
-        let (start, goal) = if reverse {
-            (goal, start)
-        } else {
-            (start, goal)
-        };
-
         self.all_balls() // Need to check all balls for potential blockers
             .bitor(goal) // Set goal bit
             .bitxor(start) // Remove start bit
             .rotate_right(offset) // Rotate by distance start bit has to the 0th bit
             .next_square() // Get the next set bit. If we can_move this should be the goal bit
-            .expect("Other exists") // We know at least the goal bit is set
             .bitboard() // Convert back to bitboard
             .rotate_left(offset) // Rotate back
             .eq(&goal) // Bit has same position as goal bit
+    }
+
+    pub fn occupied(&self, square: Square) -> bool {
+        self.all_balls().has(square)
     }
 
     /// Apply a `TacMove` to the current state
@@ -221,6 +224,9 @@ impl Board {
             TacAction::Step { from, to } => self.move_ball(from, to, player),
             TacAction::StepHome { from, to } => {
                 self.move_ball_in_goal(from, to, self.player_to_move)
+            }
+            TacAction::StepInHome { from, to } => {
+                todo!()
             }
             TacAction::Switch { target1, target2 } => self.swap_balls(target1, target2),
             TacAction::Enter => self.put_ball_in_play(player),
@@ -272,16 +278,10 @@ mod tests {
         board.xor(Square(10), Color::Black);
         board.xor(Square(12), Color::Blue);
         for i in 1..3 {
-            assert_eq!(
-                true,
-                board.can_move(Square(10), Square(10 + i as u8), false)
-            );
+            assert_eq!(true, board.can_move(Square(10), Square(10 + i as u8),));
         }
         for i in 3..13 {
-            assert_eq!(
-                false,
-                board.can_move(Square(10), Square(10 + i as u8), false)
-            );
+            assert_eq!(false, board.can_move(Square(10), Square(10 + i as u8),));
         }
     }
 }

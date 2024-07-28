@@ -5,6 +5,7 @@ pub enum TacAction {
     Step { from: Square, to: Square },
     // TODO HomeSquare type
     StepHome { from: u8, to: u8 },
+    StepInHome { from: Square, to: u8 },
     Switch { target1: Square, target2: Square },
     Enter,
     Suspend,

@@ -18,6 +18,10 @@ impl Square {
         Self(self.0 + amount).make_valid()
     }
 
+    pub const fn sub(self, amount: u8) -> Self {
+        Self(self.0 + 64 - amount).make_valid()
+    }
+
     pub const fn relative_to(self, color: Color) -> Self {
         // TODO
         // Pass and respect color order.

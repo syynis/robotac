@@ -121,7 +121,7 @@ impl Board {
 
         // Simple forward movement
         if let Some(amount) = card.is_simple() {
-            if self.can_move(start, start.add(amount), false) {
+            if self.can_move(start, start.add(amount)) {
                 moves.push(TacMove::new(
                     card,
                     TacAction::Step {
@@ -130,18 +130,55 @@ impl Board {
                     },
                 ));
             }
+            if start.distance_to_home(player) < amount && self.can_move(start, player.home()) {
+                // TODO Compute the range of possible value to reach the home beforehand, to reduce computation
+                if let Some(goal_pos) = self.position_in_home(start, amount, player) {
+                    moves.push(TacMove::new(
+                        card,
+                        TacAction::StepInHome {
+                            from: start,
+                            to: goal_pos,
+                        },
+                    ))
+                }
+            }
         }
 
         match card {
             Card::Four => {
-                // We add here because it's easier.
-                // 64 positions with wrapping so +60 is the same as -4
-                if self.can_move(start.add(60), start, true) {
+                // Each of the four positions behind us are not occupied
+                if (1..5).all(|i| !self.occupied(start.sub(i))) {
                     moves.push(TacMove::new(
                         card,
                         TacAction::Step {
                             from: start,
                             to: start.add(60),
+                        },
+                    ));
+                }
+
+                // Minimum reverse dist to goal
+                let min_rev_dist = 64 - start.distance_to_home(player) + 1;
+                let free = self.home(player).free();
+
+                // We are right infront of goal and moved in some way after entering play before
+                if min_rev_dist == 1 && free == 4 && !self.fresh(player) {
+                    moves.push(TacMove::new(
+                        card,
+                        TacAction::StepInHome { from: start, to: 4 },
+                    ));
+                } else if free > 0 // Goal needs to be free
+                    && min_rev_dist < 5 // At most 4 away from goal
+                    && min_rev_dist > 1 // Not standing on home
+                    && min_rev_dist + free > 3 // Enough space to move in
+                    && (0..min_rev_dist - 1).all(|i| !self.occupied(player.home().add(i)))
+                {
+                    let goal = 4 - min_rev_dist;
+                    moves.push(TacMove::new(
+                        card,
+                        TacAction::StepInHome {
+                            from: start,
+                            to: goal,
                         },
                     ));
                 }
@@ -185,10 +222,8 @@ impl Board {
             return start;
         }
 
-        others
-            .rotate_right(start.0)
-            .next_square()
-            .expect("We know there is at least another balls")
+        // We know there is at least another ball
+        others.rotate_right(start.0).next_square()
     }
 
     pub fn handle_tac(&self, _player: Color) -> Vec<TacMove> {
@@ -359,6 +394,7 @@ mod tests {
             )
         );
         board.move_ball(Square(0), Square(4), Color::Black);
+        assert_eq!(board.color_on(Square(4)), Some(Color::Black));
         let moves = board.moves_for_card(Square(4), Color::Black, Card::Four);
         assert_eq!(moves.len(), 1);
         assert_eq!(
@@ -371,5 +407,16 @@ mod tests {
                 }
             )
         );
+        board.put_ball_in_play(Color::Red);
+        assert_eq!(board.color_on(Square(48)), Some(Color::Red));
+        board.move_ball(Square(48), Square(3), Color::Red);
+        let moves = board.moves_for_card(Square(4), Color::Black, Card::Four);
+        assert_eq!(moves.len(), 0);
+        board.move_ball(Square(3), Square(5), Color::Red);
+        let moves = board.moves_for_card(Square(4), Color::Black, Card::Four);
+        assert_eq!(moves.len(), 1);
+        board.move_ball(Square(4), Square(3), Color::Black);
+        let moves = board.moves_for_card(Square(3), Color::Black, Card::Four);
+        assert_eq!(moves.len(), 2);
     }
 }
