@@ -224,19 +224,11 @@ impl Board {
     pub fn play(&mut self, mv: TacMove) {
         self.jester_flag = false;
         self.devil_flag = false;
-        let player = if matches!(mv.card, Card::Angel) {
-            self.player_to_move.next()
-        } else {
-            self.player_to_move
-        };
+        let player = self.player_to_move;
         match mv.action {
             TacAction::Step { from, to } => self.move_ball(from, to, player),
-            TacAction::StepHome { from, to } => {
-                self.move_ball_in_goal(from, to, self.player_to_move)
-            }
-            TacAction::StepInHome { from, to } => {
-                todo!()
-            }
+            TacAction::StepHome { from, to } => self.move_ball_in_goal(from, to, player),
+            TacAction::StepInHome { from, to } => self.move_ball_to_goal(from, to, player),
             TacAction::Switch { target1, target2 } => self.swap_balls(target1, target2),
             TacAction::Enter => self.put_ball_in_play(player),
             TacAction::Suspend => self.discard_flag = true,
@@ -245,7 +237,7 @@ impl Board {
                 self.hands.rotate_right(1);
             }
             TacAction::Devil => self.devil_flag = true,
-            TacAction::Warrior { from, to } => self.move_ball(from, to, self.player_to_move),
+            TacAction::Warrior { from, to } => self.move_ball(from, to, player),
             TacAction::Discard => self.discard_flag = false,
             TacAction::AngelEnter => self.put_ball_in_play(player.next()),
         }
@@ -254,6 +246,56 @@ impl Board {
         if !self.jester_flag {
             self.next_player();
         }
+    }
+
+    pub fn undo(&mut self, mv: TacMove, captured: Option<Color>) {
+        let player = self.player_to_move;
+        match mv.action {
+            TacAction::Step { from, to } => {
+                self.xor(from, player);
+                self.xor(to, player);
+                if let Some(captured) = captured {
+                    self.outsides[captured as usize] -= 1;
+                    self.xor(to, captured);
+                }
+            }
+            TacAction::StepHome { from, to } => self.move_ball_in_goal(to, from, player),
+            TacAction::StepInHome { from, to } => {
+                self.xor(from, player);
+                self.home(player).xor(to);
+            }
+            TacAction::Switch { target1, target2 } => self.swap_balls(target1, target2),
+            TacAction::Enter => {
+                self.xor(player.home(), player);
+                self.outsides[player as usize] += 1;
+            }
+            TacAction::Suspend => self.discard_flag = false,
+            TacAction::Jester => {
+                self.jester_flag = false;
+                self.hands.rotate_left(1);
+            }
+            TacAction::Devil => self.devil_flag = false,
+            TacAction::Warrior { from, to } => {
+                let captured = captured.expect("Warrior always captures");
+                self.outsides[captured as usize] -= 1;
+                if from != to {
+                    self.xor(from, player);
+                }
+                self.xor(to, captured);
+            }
+            TacAction::Discard => self.discard_flag = true,
+            TacAction::AngelEnter => {
+                let next = player.next();
+                self.xor(next.home(), next);
+                self.outsides[next as usize] += 1;
+            }
+        }
+        let discarded = self
+            .discarded
+            .pop()
+            .expect("There needs to be at least one discarded");
+        assert!(discarded == mv.card);
+        self.hands[player as usize].push(mv.card)
     }
 
     /// Set card to be traded

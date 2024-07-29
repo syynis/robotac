@@ -10,6 +10,10 @@ impl Hand {
         Self { cards }
     }
 
+    pub fn push(&mut self, card: Card) {
+        self.cards.push(card);
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &Card> + '_ {
         self.cards.iter()
     }
