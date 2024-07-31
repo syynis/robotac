@@ -1,5 +1,6 @@
 use crate::Square;
 
+pub const ALL_COLORS: [Color; 4] = [Color::Black, Color::Blue, Color::Green, Color::Red];
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Color {
     Black,
@@ -27,12 +28,7 @@ impl Color {
     }
 
     pub const fn partner(self) -> Self {
-        match self {
-            Color::Black => Color::Green,
-            Color::Blue => Color::Red,
-            Color::Green => Color::Black,
-            Color::Red => Color::Blue,
-        }
+        self.next().next()
     }
 
     pub const fn home(self) -> Square {

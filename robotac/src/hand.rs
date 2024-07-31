@@ -1,24 +1,22 @@
 use tac_types::Card;
 
 #[derive(Clone)]
-pub struct Hand {
-    cards: Vec<Card>,
-}
+pub struct Hand(pub Vec<Card>);
 
 impl Hand {
     pub fn new(cards: Vec<Card>) -> Self {
-        Self { cards }
+        Self(cards)
     }
 
     pub fn is_empty(&self) -> bool {
-        self.is_empty()
+        self.0.is_empty()
     }
 
     pub fn push(&mut self, card: Card) {
-        self.cards.push(card);
+        self.0.push(card);
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Card> + '_ {
-        self.cards.iter()
+        self.0.iter()
     }
 }

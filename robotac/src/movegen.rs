@@ -8,6 +8,12 @@ impl Board {
         let mut moves = Vec::new();
 
         for card in hand.iter().sorted().dedup() {
+            if self.need_trade() {
+                moves.push(TacMove {
+                    card: *card,
+                    action: TacAction::Trade,
+                });
+            }
             moves.extend(self.moves_for_card(player, *card));
         }
 
@@ -365,13 +371,11 @@ impl Board {
 
 #[cfg(test)]
 mod tests {
-    use itertools::assert_equal;
-
     use super::*;
 
     #[test]
     fn seven_moves() {
-        let mut board = Board::default();
+        let mut board = Board::new();
         let player = Color::Black;
         board.put_ball_in_play(player);
         let moves = board.seven_moves(player);
@@ -392,7 +396,7 @@ mod tests {
 
     #[test]
     fn switching_moves() {
-        let mut board = Board::default();
+        let mut board = Board::new();
         for color in [Color::Black, Color::Blue, Color::Green, Color::Red] {
             board.put_ball_in_play(color);
         }
@@ -402,7 +406,7 @@ mod tests {
 
     #[test]
     fn four() {
-        let mut board = Board::default();
+        let mut board = Board::new();
         board.put_ball_in_play(Color::Black);
         let moves = board.moves_for_card_square(Square(0), Color::Black, Card::Four);
         assert_eq!(moves.len(), 1);
@@ -445,7 +449,7 @@ mod tests {
 
     #[test]
     fn warrior() {
-        let mut board = Board::default();
+        let mut board = Board::new();
         board.put_ball_in_play(Color::Black);
         board.put_ball_in_play(Color::Red);
 
@@ -478,7 +482,7 @@ mod tests {
 
     #[test]
     fn tac() {
-        let mut board = Board::default();
+        let mut board = Board::new();
         let mv = TacMove {
             card: Card::One,
             action: TacAction::Enter,

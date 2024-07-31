@@ -14,6 +14,7 @@ pub enum TacAction {
     Warrior { from: Square, to: Square },
     Discard,
     AngelEnter,
+    Trade,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]

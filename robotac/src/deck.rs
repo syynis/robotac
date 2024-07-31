@@ -36,6 +36,9 @@ impl Deck {
     }
 
     pub fn deal<R: Rng>(&mut self, rng: &mut R) -> Vec<Card> {
+        if self.times_dealt == 5 {
+            self.reset(rng);
+        }
         let deal_amount = if self.times_dealt == 4 { 24 } else { 20 };
 
         let cards = self
@@ -47,10 +50,6 @@ impl Deck {
 
         self.top_idx += deal_amount;
         self.times_dealt += 1;
-
-        if self.times_dealt == 5 {
-            self.reset(rng);
-        }
         cards
     }
 

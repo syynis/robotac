@@ -1,7 +1,7 @@
 use std::ops::{BitOr, BitXor};
 
 use rand::thread_rng;
-use tac_types::{BitBoard, Card, Color, Home, Square, TacAction, TacMove};
+use tac_types::{BitBoard, Card, Color, Home, Square, TacAction, TacMove, ALL_COLORS};
 
 use crate::{deck::Deck, hand::Hand};
 
@@ -16,29 +16,27 @@ pub struct Board {
     discard_flag: bool,
     jester_flag: bool,
     devil_flag: bool,
+    trade_flag: bool,
     deck: Deck,
     discarded: Vec<Card>,
     past_moves: Vec<(TacMove, Option<Color>)>,
     hands: [Hand; 4],
     traded: [Option<Card>; 4],
+    one_or_thirteen: [bool; 4],
 }
 
 impl Default for Board {
     fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Board {
+    pub fn new() -> Self {
         let mut rng = thread_rng();
-        let mut deck = Deck::new(&mut rng);
-        let dealt_cards = deck.deal(&mut rng);
         const EMPTY: Vec<Card> = Vec::new();
-        let mut hands = [EMPTY; 4];
-        for set in dealt_cards.chunks_exact(4) {
-            for (cidx, card) in set.iter().enumerate() {
-                hands[cidx].push(*card);
-            }
-        }
 
-        let hands = hands.map(Hand::new);
-
-        Self {
+        let mut s = Self {
             balls: [BitBoard::EMPTY; 4],
             player_to_move: Color::Black,
             homes: [Home::EMPTY; 4],
@@ -47,16 +45,18 @@ impl Default for Board {
             discard_flag: false,
             jester_flag: false,
             devil_flag: false,
-            deck,
+            trade_flag: false,
+            deck: Deck::new(&mut rng),
             discarded: Vec::new(),
             past_moves: Vec::new(),
-            hands,
+            hands: [EMPTY; 4].map(Hand::new),
             traded: [None; 4],
-        }
-    }
-}
+            one_or_thirteen: [false; 4],
+        };
 
-impl Board {
+        s.deal_new();
+        s
+    }
     /// Put ball from given player onto the board.
     /// Captures any ball that was on the starting position.
     pub fn put_ball_in_play(&mut self, color: Color) {
@@ -104,9 +104,7 @@ impl Board {
 
     /// Checks if there is a ball on `square` and returns it's color if there is any.
     pub fn color_on(&self, square: Square) -> Option<Color> {
-        let colors = [Color::Black, Color::Blue, Color::Green, Color::Red];
-
-        for color in colors.iter() {
+        for color in ALL_COLORS.iter() {
             if self.balls[(*color) as usize].has(square) {
                 return Some(*color);
             }
@@ -155,10 +153,13 @@ impl Board {
         self.homes[color as usize]
     }
 
+    /// Returns true if player has no ball on home square
+    /// or if it is on the home square but hasn't been moved yet.
     pub fn fresh(&self, color: Color) -> bool {
         self.fresh[color as usize]
     }
 
+    /// Returns players hand
     pub fn hand(&self, color: Color) -> &Hand {
         &self.hands[color as usize]
     }
@@ -191,6 +192,7 @@ impl Board {
         self.discarded.iter().last().copied()
     }
 
+    /// Returns past moves
     pub fn past_moves(&self) -> &Vec<(TacMove, Option<Color>)> {
         &self.past_moves
     }
@@ -223,6 +225,7 @@ impl Board {
             .eq(&goal) // Bit has same position as goal bit
     }
 
+    /// Returns true if square is occupied
     pub fn occupied(&self, square: Square) -> bool {
         self.all_balls().has(square)
     }
@@ -250,16 +253,26 @@ impl Board {
             TacAction::Warrior { from, to } => self.move_ball(from, to, player),
             TacAction::Discard => self.discard_flag = false,
             TacAction::AngelEnter => self.put_ball_in_play(player.next()),
+            TacAction::Trade => {
+                self.trade(mv.card, player);
+                if self.traded.iter().all(|t| t.is_some()) {
+                    self.take_traded();
+                };
+                self.next_player();
+            }
         }
-        self.discarded.push(mv.card);
 
-        if !self.jester_flag {
-            self.next_player();
-        }
-        self.past_moves.push((mv, None));
+        // Don't run this logic if we are in trade phase
+        if !matches!(mv.action, TacAction::Trade) {
+            self.discarded.push(mv.card);
+            if !self.jester_flag {
+                self.next_player();
+            }
+            self.past_moves.push((mv, None));
 
-        if self.hands.iter().all(|h| h.is_empty()) {
-            self.deal_new(self.current_player());
+            if self.hands.iter().all(|h| h.is_empty()) {
+                self.deal_new();
+            }
         }
     }
 
@@ -310,46 +323,95 @@ impl Board {
                 self.xor(next.home(), next);
                 self.outsides[next as usize] += 1;
             }
+            TacAction::Trade => unreachable!("Can't undo trading"),
         }
     }
 
     /// Set card to be traded
     pub fn trade(&mut self, card: Card, player: Color) {
-        self.traded[player.next().next() as usize] = Some(card);
+        self.traded[player.partner() as usize] = Some(card);
     }
 
-    /// Returns the card that was traded if it exists
-    pub fn take_traded(&mut self, player: Color) -> Option<Card> {
-        self.traded[player as usize].take()
+    /// Put each traded card into the hand they belong to
+    pub fn take_traded(&mut self) {
+        self.trade_flag = false;
+        for player in ALL_COLORS.iter() {
+            self.hands[*player as usize].push(
+                self.traded[*player as usize]
+                    .take()
+                    .expect("Every player put up a card for trade"),
+            );
+        }
     }
 
+    /// Returns true if we are in trade phase
     pub fn need_trade(&self) -> bool {
-        self.traded.iter().all(|t| t.is_none())
+        self.trade_flag && self.traded[self.player_to_move as usize].is_none()
     }
 
-    pub fn deal_new(&mut self, dealer: Color) {
+    /// Begin trade phase
+    pub fn begin_trade(&mut self) {
+        self.trade_flag = true;
+    }
+
+    /// Deal a new set of hands to each player
+    pub fn deal_new(&mut self) {
+        assert!(self.hands.iter().all(|h| h.is_empty()));
         let mut rng = thread_rng();
         let dealt_cards = self.deck.deal(&mut rng);
-        const EMPTY: Vec<Card> = Vec::new();
-        let mut new_hands = [EMPTY; 4];
 
         for set in dealt_cards.chunks_exact(4) {
             for (cidx, card) in set.iter().enumerate() {
-                new_hands[cidx].push(*card);
+                self.hands[cidx].push(*card);
             }
         }
-        self.hands = new_hands.map(Hand::new);
-        self.next_player();
+        self.one_or_thirteen = self
+            .hands
+            .clone()
+            .map(|h| h.iter().any(|c| matches!(c, Card::One | Card::Thirteen)));
+        self.trade_flag = true;
     }
 }
 
 impl std::fmt::Debug for Board {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for team in self.balls {
-            for square in team {
-                write!(f, "{:?}", square)?;
-            }
+        for ball in self.all_balls() {
+            write!(f, "({}, {:?}), ", ball.0, self.color_on(ball).unwrap())?;
         }
+        write!(f, "\nhands: ")?;
+        for hand in &self.hands {
+            write!(f, "{:?}, ", hand.0)?;
+        }
+        write!(f, "\nhomes: ")?;
+        for home in self.homes {
+            write!(f, "{:#b}, ", home.0)?;
+        }
+        write!(f, "\noutside: ")?;
+        for outside in self.outsides {
+            write!(f, "{}, ", outside)?;
+        }
+        write!(f, "\n1/13: ")?;
+        for one_or_thirteen in self.one_or_thirteen {
+            write!(f, "{}, ", one_or_thirteen)?;
+        }
+        write!(f, "\ntraded: ")?;
+        for traded in self.traded {
+            write!(f, "{:?}, ", traded)?;
+        }
+        write!(f, "\nfresh: ")?;
+        for fresh in self.fresh {
+            write!(f, "{}, ", fresh)?;
+        }
+        writeln!(f)?;
+        writeln!(
+            f,
+            "to_move {:?}, discard {}, jester {}, devil, {}, trade, {}",
+            self.player_to_move,
+            self.discard_flag,
+            self.jester_flag,
+            self.devil_flag,
+            self.trade_flag
+        )?;
         Ok(())
     }
 }
@@ -359,7 +421,7 @@ mod tests {
     use super::*;
     #[test]
     fn can_move() {
-        let mut board = Board::default();
+        let mut board = Board::new();
         board.xor(Square(10), Color::Black);
         for i in 1..64u8 {
             assert_eq!(true, board.can_move(Square(10), Square(10).add(i)));
@@ -371,5 +433,6 @@ mod tests {
         for i in 3..13u8 {
             assert_eq!(false, board.can_move(Square(10), Square(10).add(i)));
         }
+        println!("{:?}", board);
     }
 }
