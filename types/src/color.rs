@@ -17,6 +17,14 @@ impl Color {
             Color::Red => Color::Black,
         }
     }
+    pub fn prev(self) -> Self {
+        match self {
+            Color::Black => Color::Red,
+            Color::Blue => Color::Black,
+            Color::Green => Color::Blue,
+            Color::Red => Color::Green,
+        }
+    }
 
     pub fn partner(self) -> Self {
         match self {

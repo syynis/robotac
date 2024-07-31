@@ -18,6 +18,7 @@ pub struct Board {
     devil_flag: bool,
     deck: Deck,
     discarded: Vec<Card>,
+    past_moves: Vec<(TacMove, Option<Color>)>,
     hands: [Hand; 4],
     traded: [Option<Card>; 4],
 }
@@ -48,6 +49,7 @@ impl Default for Board {
             devil_flag: false,
             deck,
             discarded: Vec::new(),
+            past_moves: Vec::new(),
             hands,
             traded: [None; 4],
         }
@@ -166,6 +168,11 @@ impl Board {
         self.discard_flag
     }
 
+    /// Returns `true` if current player played jester and needs to play another card.
+    pub fn jester_flag(&self) -> bool {
+        self.jester_flag
+    }
+
     /// Checks if a ball at a given position can reach its home with a given amount.
     /// Returns the position in the goal if able to.
     pub fn position_in_home(&self, start: Square, amount: u8, color: Color) -> Option<u8> {
@@ -181,11 +188,11 @@ impl Board {
     /// Returns the last played card.
     /// Will return `None` if the current player is on the first move.
     pub fn last_played(&self) -> Option<Card> {
-        self.discarded
-            .iter()
-            .rev()
-            .find(|c| !(matches!(c, Card::Tac) || matches!(c, Card::Jester) && self.jester_flag))
-            .copied()
+        self.discarded.iter().last().copied()
+    }
+
+    pub fn past_moves(&self) -> &Vec<(TacMove, Option<Color>)> {
+        &self.past_moves
     }
 
     /// Returns `true` if the there is no ball between `start` and `goal`.
@@ -248,8 +255,13 @@ impl Board {
         }
     }
 
-    pub fn undo(&mut self, mv: TacMove, captured: Option<Color>) {
-        let player = self.player_to_move;
+    pub fn tac_undo(&mut self) {
+        let (mv, captured) = self
+            .past_moves
+            .last()
+            .expect("Undo only ever called with past_moves non-empty");
+        let (mv, captured) = (*mv, *captured);
+        let player = self.player_to_move.prev();
         match mv.action {
             TacAction::Step { from, to } => {
                 self.xor(from, player);
@@ -290,6 +302,15 @@ impl Board {
                 self.outsides[next as usize] += 1;
             }
         }
+    }
+
+    pub fn undo(&mut self) {
+        let player = self.player_to_move.prev();
+        self.tac_undo();
+        let (mv, captured) = self
+            .past_moves
+            .pop()
+            .expect("Undo only ever called with past_moves non-empty");
         let discarded = self
             .discarded
             .pop()

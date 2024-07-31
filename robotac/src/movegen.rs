@@ -9,114 +9,123 @@ impl Board {
         let balls = self.balls_with(player);
 
         for card in hand.iter().sorted().dedup() {
-            // If player before us played an eight to suspend we have to discard
-            if self.force_discard() {
-                if matches!(card, Card::Tac) {
-                    moves.push(TacMove {
-                        card: Card::Tac,
-                        action: TacAction::Suspend,
-                    });
-                }
-                moves.push(TacMove::new(*card, TacAction::Discard));
-                continue;
-            }
-            // If we still have balls outside of play, we can put them on the board
-            if matches!(card, Card::One | Card::Thirteen) && self.num_outside(player) > 0 {
-                moves.push(TacMove::new(*card, TacAction::Enter));
-            }
-            // Master cards
-            if matches!(card, Card::Jester) {
-                moves.push(TacMove::new(*card, TacAction::Jester));
-            }
-            if matches!(card, Card::Devil) {
-                moves.push(TacMove::new(*card, TacAction::Devil));
-            }
-
-            if matches!(card, Card::Angel) {
-                // If player after us still has balls out of play
-                if self.num_outside(player.next()) > 0 {
-                    moves.push(TacMove::new(*card, TacAction::AngelEnter));
-                } else {
-                    for ball in self.balls_with(player.next()) {
-                        moves.extend(self.moves_for_card(ball, player.next(), Card::One));
-                        moves.extend(self.moves_for_card(ball, player.next(), Card::Thirteen));
-                    }
-                }
-            }
-
-            if matches!(card, Card::Tac) {
-                moves.extend(self.handle_tac(player));
-            }
-
-            // NOTE The number of possible seven moves scales extremely unwell for 3 (~7^2) and 4 (~7^3) moveable balls
-            // Consider special casing them so move evaluation can prune them effectively with expert knowledge
-            if (!self.home(player).is_locked() || self.num_outside(player) > 0)
-                && matches!(card, Card::Seven)
-            {
-                moves.extend(self.seven_moves(player));
-            }
-
-            // Moves for balls that are not locked in their home
-            // Uses matching on the bit patterns that correspond to states in which there are unlocked balls
-            // with enough space to move the desired amount
-            if !self.home(player).is_locked() {
-                let home = self.home(player);
-                match card {
-                    Card::One => match home.0 {
-                        0b0001 | 0b1001 | 0b1101 => {
-                            moves.push(TacMove::new(*card, TacAction::StepHome { from: 0, to: 1 }))
-                        }
-                        0b0010 | 0b1010 | 0b0011 | 0b1011 => {
-                            moves.push(TacMove::new(*card, TacAction::StepHome { from: 1, to: 2 }))
-                        }
-                        0b0100 | 0b0110 | 0b0111 => {
-                            moves.push(TacMove::new(*card, TacAction::StepHome { from: 2, to: 3 }))
-                        }
-                        0b0101 => {
-                            moves.push(TacMove::new(*card, TacAction::StepHome { from: 0, to: 1 }));
-                            moves.push(TacMove::new(*card, TacAction::StepHome { from: 2, to: 3 }));
-                        }
-                        _ => {}
-                    },
-                    Card::Two => match home.0 {
-                        0b0001 => {
-                            moves.push(TacMove::new(*card, TacAction::StepHome { from: 0, to: 2 }));
-                        }
-                        0b0010 | 0b0011 => {
-                            moves.push(TacMove::new(*card, TacAction::StepHome { from: 1, to: 3 }));
-                        }
-                        0b1001 => {
-                            moves.push(TacMove::new(*card, TacAction::StepHome { from: 0, to: 2 }));
-                        }
-                        _ => {}
-                    },
-                    Card::Three => {
-                        if home.0 == 0b0001 {
-                            moves.push(TacMove::new(*card, TacAction::StepHome { from: 0, to: 3 }));
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            // Moves we can only do with balls on the board
-            if !self.balls_with(player).is_empty() {
-                if matches!(card, Card::Juggler) {
-                    moves.extend(self.switching_moves());
-                } else {
-                    if matches!(card, Card::Eight) {
-                        moves.push(TacMove::new(*card, TacAction::Suspend));
-                    }
-                    for ball in balls.iter() {
-                        moves.extend(self.moves_for_card(ball, player, *card));
-                    }
-                }
-            }
+            moves.extend(self.moves_for_card(player, card));
         }
 
         moves
     }
 
-    pub fn moves_for_card(&self, start: Square, player: Color, card: Card) -> Vec<TacMove> {
+    pub fn moves_for_card(&self, player: Color, card: &Card) -> Vec<TacMove> {
+        let mut moves = Vec::new();
+        let balls = self.balls_with(player);
+
+        if self.force_discard() {
+            if matches!(card, Card::Tac) {
+                moves.push(TacMove {
+                    card: Card::Tac,
+                    action: TacAction::Suspend,
+                });
+
+                for ball in balls {
+                    moves.extend(self.moves_for_card_square(ball, player, Card::Eight));
+                }
+            }
+            moves.push(TacMove::new(*card, TacAction::Discard));
+            return moves;
+        }
+        // If we still have balls outside of play, we can put them on the board
+        if matches!(card, Card::One | Card::Thirteen) && self.num_outside(player) > 0 {
+            moves.push(TacMove::new(*card, TacAction::Enter));
+        }
+        // Master cards
+        if matches!(card, Card::Jester) {
+            moves.push(TacMove::new(*card, TacAction::Jester));
+        }
+        if matches!(card, Card::Devil) {
+            moves.push(TacMove::new(*card, TacAction::Devil));
+        }
+
+        if matches!(card, Card::Angel) {
+            // If player after us still has balls out of play
+            if self.num_outside(player.next()) > 0 {
+                moves.push(TacMove::new(*card, TacAction::AngelEnter));
+            } else {
+                for ball in self.balls_with(player.next()) {
+                    moves.extend(self.moves_for_card_square(ball, player.next(), Card::One));
+                    moves.extend(self.moves_for_card_square(ball, player.next(), Card::Thirteen));
+                }
+            }
+        }
+
+        if matches!(card, Card::Tac) {
+            moves.extend(self.handle_tac(player));
+        }
+
+        // NOTE The number of possible seven moves scales extremely unwell for 3 (~7^2) and 4 (~7^3) moveable balls
+        // Consider special casing them so move evaluation can prune them effectively with expert knowledge
+        if (!self.home(player).is_locked() || !balls.is_empty()) && matches!(card, Card::Seven) {
+            moves.extend(self.seven_moves(player));
+        }
+
+        // Moves for balls that are not locked in their home
+        // Uses matching on the bit patterns that correspond to states in which there are unlocked balls
+        // with enough space to move the desired amount
+        if !self.home(player).is_locked() {
+            let home = self.home(player);
+            match card {
+                Card::One => match home.0 {
+                    0b0001 | 0b1001 | 0b1101 => {
+                        moves.push(TacMove::new(*card, TacAction::StepHome { from: 0, to: 1 }))
+                    }
+                    0b0010 | 0b1010 | 0b0011 | 0b1011 => {
+                        moves.push(TacMove::new(*card, TacAction::StepHome { from: 1, to: 2 }))
+                    }
+                    0b0100 | 0b0110 | 0b0111 => {
+                        moves.push(TacMove::new(*card, TacAction::StepHome { from: 2, to: 3 }))
+                    }
+                    0b0101 => {
+                        moves.push(TacMove::new(*card, TacAction::StepHome { from: 0, to: 1 }));
+                        moves.push(TacMove::new(*card, TacAction::StepHome { from: 2, to: 3 }));
+                    }
+                    _ => {}
+                },
+                Card::Two => match home.0 {
+                    0b0001 => {
+                        moves.push(TacMove::new(*card, TacAction::StepHome { from: 0, to: 2 }));
+                    }
+                    0b0010 | 0b0011 => {
+                        moves.push(TacMove::new(*card, TacAction::StepHome { from: 1, to: 3 }));
+                    }
+                    0b1001 => {
+                        moves.push(TacMove::new(*card, TacAction::StepHome { from: 0, to: 2 }));
+                    }
+                    _ => {}
+                },
+                Card::Three => {
+                    if home.0 == 0b0001 {
+                        moves.push(TacMove::new(*card, TacAction::StepHome { from: 0, to: 3 }));
+                    }
+                }
+                _ => {}
+            }
+        }
+        // Moves we can only do with balls on the board
+        if !balls.is_empty() {
+            if matches!(card, Card::Juggler) {
+                moves.extend(self.switching_moves());
+            } else {
+                if matches!(card, Card::Eight) {
+                    moves.push(TacMove::new(*card, TacAction::Suspend));
+                }
+                for ball in balls.iter() {
+                    moves.extend(self.moves_for_card_square(ball, player, *card));
+                }
+            }
+        }
+        moves
+    }
+
+    pub fn moves_for_card_square(&self, start: Square, player: Color, card: Card) -> Vec<TacMove> {
         let mut moves = Vec::new();
 
         // Simple forward movement
@@ -226,10 +235,19 @@ impl Board {
         others.rotate_right(start.0).next_square()
     }
 
-    pub fn handle_tac(&self, _player: Color) -> Vec<TacMove> {
-        let moves = Vec::new();
-        let _last = self.last_played();
-        // TODO
+    pub fn handle_tac(&self, player: Color) -> Vec<TacMove> {
+        let mut moves = Vec::new();
+        let last = self.last_played();
+
+        if let Some((last_move, captured)) = self.past_moves().iter().rev().find(|&&(c, _)| {
+            !(matches!(c.card, Card::Tac) || (matches!(c.card, Card::Jester) && self.jester_flag()))
+        }) {
+            let mut state = self.clone();
+            state.tac_undo();
+            state.moves_for_card(player, &last_move.card);
+            let mut is_movement = false;
+        }
+
         moves
     }
 
@@ -381,7 +399,7 @@ mod tests {
     fn four() {
         let mut board = Board::default();
         board.put_ball_in_play(Color::Black);
-        let moves = board.moves_for_card(Square(0), Color::Black, Card::Four);
+        let moves = board.moves_for_card_square(Square(0), Color::Black, Card::Four);
         assert_eq!(moves.len(), 1);
         assert_eq!(
             moves[0],
@@ -395,7 +413,7 @@ mod tests {
         );
         board.move_ball(Square(0), Square(4), Color::Black);
         assert_eq!(board.color_on(Square(4)), Some(Color::Black));
-        let moves = board.moves_for_card(Square(4), Color::Black, Card::Four);
+        let moves = board.moves_for_card_square(Square(4), Color::Black, Card::Four);
         assert_eq!(moves.len(), 1);
         assert_eq!(
             moves[0],
@@ -410,13 +428,13 @@ mod tests {
         board.put_ball_in_play(Color::Red);
         assert_eq!(board.color_on(Square(48)), Some(Color::Red));
         board.move_ball(Square(48), Square(3), Color::Red);
-        let moves = board.moves_for_card(Square(4), Color::Black, Card::Four);
+        let moves = board.moves_for_card_square(Square(4), Color::Black, Card::Four);
         assert_eq!(moves.len(), 0);
         board.move_ball(Square(3), Square(5), Color::Red);
-        let moves = board.moves_for_card(Square(4), Color::Black, Card::Four);
+        let moves = board.moves_for_card_square(Square(4), Color::Black, Card::Four);
         assert_eq!(moves.len(), 1);
         board.move_ball(Square(4), Square(3), Color::Black);
-        let moves = board.moves_for_card(Square(3), Color::Black, Card::Four);
+        let moves = board.moves_for_card_square(Square(3), Color::Black, Card::Four);
         assert_eq!(moves.len(), 2);
     }
 }
