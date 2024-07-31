@@ -48,19 +48,19 @@ impl BitBoard {
         Square(self.0.trailing_zeros() as u8)
     }
 
-    pub fn iter(self) -> BitBoardIter {
+    pub const fn iter(self) -> BitBoardIter {
         BitBoardIter(self)
     }
 
-    pub fn invert_trailing(self) -> Self {
+    pub const fn invert_trailing(self) -> Self {
         Self(self.0 - 1)
     }
 
-    pub fn rotate_right(self, n: u8) -> Self {
+    pub const fn rotate_right(self, n: u8) -> Self {
         Self(self.0.rotate_right(n as u32))
     }
 
-    pub fn rotate_left(self, n: u8) -> Self {
+    pub const fn rotate_left(self, n: u8) -> Self {
         Self(self.0.rotate_left(n as u32))
     }
 }

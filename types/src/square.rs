@@ -44,12 +44,11 @@ impl Square {
     }
 
     pub fn between_mask(self, other: Self) -> BitBoard {
-        if self < other {
-            other.bitboard().invert_trailing()
-                & !(self.bitboard().invert_trailing() | self.bitboard())
+        let (from, to) = if self.0 < other.0 {
+            (self, other)
         } else {
-            !(self.bitboard().invert_trailing() | self.bitboard())
-                & !(other.bitboard().invert_trailing() | other.bitboard())
-        }
+            (other, self)
+        };
+        to.bitboard().invert_trailing() & !(from.bitboard().invert_trailing() | from.bitboard())
     }
 }
