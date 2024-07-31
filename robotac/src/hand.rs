@@ -10,6 +10,10 @@ impl Hand {
         Self { cards }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+
     pub fn push(&mut self, card: Card) {
         self.cards.push(card);
     }

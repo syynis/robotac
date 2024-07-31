@@ -232,6 +232,9 @@ impl Board {
         self.jester_flag = false;
         self.devil_flag = false;
         let player = self.player_to_move;
+        if matches!(mv.card, Card::Tac) && !self.discard_flag {
+            self.tac_undo();
+        }
         match mv.action {
             TacAction::Step { from, to } => self.move_ball(from, to, player),
             TacAction::StepHome { from, to } => self.move_ball_in_goal(from, to, player),
@@ -253,8 +256,14 @@ impl Board {
         if !self.jester_flag {
             self.next_player();
         }
+        self.past_moves.push((mv, None));
+
+        if self.hands.iter().all(|h| h.is_empty()) {
+            self.deal_new(self.current_player());
+        }
     }
 
+    /// Undo last move played according
     pub fn tac_undo(&mut self) {
         let (mv, captured) = self
             .past_moves
@@ -304,21 +313,6 @@ impl Board {
         }
     }
 
-    pub fn undo(&mut self) {
-        let player = self.player_to_move.prev();
-        self.tac_undo();
-        let (mv, captured) = self
-            .past_moves
-            .pop()
-            .expect("Undo only ever called with past_moves non-empty");
-        let discarded = self
-            .discarded
-            .pop()
-            .expect("There needs to be at least one discarded");
-        assert!(discarded == mv.card);
-        self.hands[player as usize].push(mv.card)
-    }
-
     /// Set card to be traded
     pub fn trade(&mut self, card: Card, player: Color) {
         self.traded[player.next().next() as usize] = Some(card);
@@ -327,6 +321,25 @@ impl Board {
     /// Returns the card that was traded if it exists
     pub fn take_traded(&mut self, player: Color) -> Option<Card> {
         self.traded[player as usize].take()
+    }
+
+    pub fn need_trade(&self) -> bool {
+        self.traded.iter().all(|t| t.is_none())
+    }
+
+    pub fn deal_new(&mut self, dealer: Color) {
+        let mut rng = thread_rng();
+        let dealt_cards = self.deck.deal(&mut rng);
+        const EMPTY: Vec<Card> = Vec::new();
+        let mut new_hands = [EMPTY; 4];
+
+        for set in dealt_cards.chunks_exact(4) {
+            for (cidx, card) in set.iter().enumerate() {
+                new_hands[cidx].push(*card);
+            }
+        }
+        self.hands = new_hands.map(Hand::new);
+        self.next_player();
     }
 }
 
