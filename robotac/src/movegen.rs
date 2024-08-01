@@ -7,14 +7,44 @@ impl Board {
     pub fn get_moves(&self, player: Color, hand: &Hand) -> Vec<TacMove> {
         let mut moves = Vec::new();
 
-        for card in hand.iter().sorted().dedup() {
-            if self.need_trade() {
+        // If in trade phase trade move for every card in hand
+        if self.need_trade() {
+            for card in hand.iter().sorted().dedup() {
                 moves.push(TacMove {
                     card: *card,
                     action: TacAction::Trade,
                 });
             }
+            return moves;
+        }
+
+        // If we are forced to discard, either respond with tac or discard any card in hand
+        if self.force_discard() {
+            if hand.iter().any(|c| matches!(c, Card::Tac)) {
+                moves.extend(self.tac_moves(player));
+            }
+            for card in hand.iter().sorted().dedup() {
+                moves.push(TacMove {
+                    card: *card,
+                    action: TacAction::Discard,
+                });
+            }
+            return moves;
+        }
+
+        // Compute moves for each card in hand
+        for card in hand.iter().sorted().dedup() {
             moves.extend(self.moves_for_card(player, *card));
+        }
+
+        // We can't do anything so discard any card
+        if moves.is_empty() {
+            for card in hand.iter().sorted().dedup() {
+                moves.push(TacMove {
+                    card: *card,
+                    action: TacAction::Discard,
+                });
+            }
         }
 
         moves
@@ -22,54 +52,56 @@ impl Board {
 
     pub fn moves_for_card(&self, player: Color, card: Card) -> Vec<TacMove> {
         let mut moves = Vec::new();
-        let balls = self.balls_with(player);
 
-        if self.force_discard() {
-            if matches!(card, Card::Tac) {
-                moves.push(TacMove {
-                    card: Card::Tac,
-                    action: TacAction::Suspend,
-                });
-
-                for ball in balls {
-                    moves.extend(self.moves_for_card_square(ball, player, Card::Eight));
+        match card {
+            Card::One | Card::Thirteen => {
+                // If we still have balls outside of play, we can put them on the board
+                if self.num_outside(player) > 0 {
+                    moves.push(TacMove::new(card, TacAction::Enter));
                 }
             }
-            moves.push(TacMove::new(card, TacAction::Discard));
-            return moves;
-        }
-        // If we still have balls outside of play, we can put them on the board
-        if matches!(card, Card::One | Card::Thirteen) && self.num_outside(player) > 0 {
-            moves.push(TacMove::new(card, TacAction::Enter));
-        }
-        // Master cards
-        if matches!(card, Card::Jester) {
-            moves.push(TacMove::new(card, TacAction::Jester));
-        }
-        if matches!(card, Card::Devil) {
-            moves.push(TacMove::new(card, TacAction::Devil));
-        }
-
-        if matches!(card, Card::Angel) {
-            // If player after us still has balls out of play
-            if self.num_outside(player.next()) > 0 {
-                moves.push(TacMove::new(card, TacAction::AngelEnter));
-            } else {
-                for ball in self.balls_with(player.next()) {
-                    moves.extend(self.moves_for_card_square(ball, player.next(), Card::One));
-                    moves.extend(self.moves_for_card_square(ball, player.next(), Card::Thirteen));
+            Card::Seven => {
+                // NOTE The number of possible seven moves scales extremely unwell for 3 (~7^2) and 4 (~7^3) moveable balls
+                // Consider special casing them so move evaluation can prune them effectively with expert knowledge
+                if !self.home(player).is_locked() || self.can_play(player) {
+                    moves.extend(self.seven_moves(player));
                 }
             }
-        }
-
-        if matches!(card, Card::Tac) {
-            moves.extend(self.tac_moves(player));
-        }
-
-        // NOTE The number of possible seven moves scales extremely unwell for 3 (~7^2) and 4 (~7^3) moveable balls
-        // Consider special casing them so move evaluation can prune them effectively with expert knowledge
-        if (!self.home(player).is_locked() || !balls.is_empty()) && matches!(card, Card::Seven) {
-            moves.extend(self.seven_moves(player));
+            Card::Eight => {
+                if self.can_play(player) {
+                    moves.push(TacMove::new(card, TacAction::Suspend));
+                }
+            }
+            Card::Juggler => {
+                if self.can_play(player) {
+                    moves.extend(self.switching_moves());
+                }
+            }
+            Card::Jester => {
+                moves.push(TacMove::new(card, TacAction::Jester));
+            }
+            Card::Angel => {
+                // If player after us still has balls out of play
+                if self.num_outside(player.next()) > 0 {
+                    moves.push(TacMove::new(card, TacAction::AngelEnter));
+                } else {
+                    for ball in self.balls_with(player.next()) {
+                        moves.extend(self.moves_for_card_square(ball, player.next(), Card::One));
+                        moves.extend(self.moves_for_card_square(
+                            ball,
+                            player.next(),
+                            Card::Thirteen,
+                        ));
+                    }
+                }
+            }
+            Card::Devil => {
+                moves.push(TacMove::new(card, TacAction::Devil));
+            }
+            Card::Tac => {
+                moves.extend(self.tac_moves(player));
+            }
+            _ => {}
         }
 
         // Moves for balls that are not locked in their home
@@ -114,17 +146,11 @@ impl Board {
                 _ => {}
             }
         }
+
         // Moves we can only do with balls on the board
-        if !balls.is_empty() {
-            if matches!(card, Card::Juggler) {
-                moves.extend(self.switching_moves());
-            } else {
-                if matches!(card, Card::Eight) {
-                    moves.push(TacMove::new(card, TacAction::Suspend));
-                }
-                for ball in balls.iter() {
-                    moves.extend(self.moves_for_card_square(ball, player, card));
-                }
+        if self.can_play(player) {
+            for ball in self.balls_with(player).iter() {
+                moves.extend(self.moves_for_card_square(ball, player, card));
             }
         }
         moves
@@ -237,7 +263,7 @@ impl Board {
         }
 
         // We know there is at least another ball
-        others.rotate_right(start.0).next_square()
+        others.rotate_right(start.0).next_square().add(start.0)
     }
 
     pub fn tac_moves(&self, player: Color) -> Vec<TacMove> {
@@ -248,16 +274,19 @@ impl Board {
         }) {
             let mut state = self.clone();
             state.tac_undo();
-            moves.extend(state.moves_for_card(player, last_move.card));
+            moves.extend(
+                state
+                    .moves_for_card(player, last_move.card)
+                    .iter()
+                    .map(|m| TacMove {
+                        card: Card::Tac,
+                        action: m.action,
+                    })
+                    .collect_vec(),
+            );
         }
 
         moves
-            .iter_mut()
-            .map(|x| {
-                x.card = Card::Tac;
-                *x
-            })
-            .collect_vec()
     }
 
     pub fn seven_moves(&self, player: Color) -> Vec<TacMove> {

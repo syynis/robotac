@@ -235,7 +235,7 @@ impl Board {
         self.jester_flag = false;
         self.devil_flag = false;
         let player = self.player_to_move;
-        if matches!(mv.card, Card::Tac) && !self.discard_flag {
+        if matches!(mv.card, Card::Tac) && !matches!(mv.action, TacAction::Discard) {
             self.tac_undo();
         }
         match mv.action {
@@ -278,6 +278,7 @@ impl Board {
 
     /// Undo last move played according
     pub fn tac_undo(&mut self) {
+        // TODO handle tac on tac chains
         let (mv, captured) = self
             .past_moves
             .last()
@@ -370,6 +371,10 @@ impl Board {
             .clone()
             .map(|h| h.iter().any(|c| matches!(c, Card::One | Card::Thirteen)));
         self.trade_flag = true;
+    }
+
+    pub fn can_play(&self, player: Color) -> bool {
+        !self.balls_with(player).is_empty()
     }
 }
 
