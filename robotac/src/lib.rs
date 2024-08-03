@@ -69,7 +69,7 @@ impl GameState for Board {
     }
 
     fn make_move(&mut self, mv: &Self::Move) {
-        self.play(*mv)
+        self.play(mv.clone())
     }
 
     fn randomize_determination(&mut self, observer: Self::Player) {

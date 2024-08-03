@@ -1,6 +1,6 @@
 use crate::{square::Square, Card};
 
-#[derive(Debug, Clone, Copy, PartialEq, Hash)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub enum TacAction {
     Step { from: Square, to: Square },
     // TODO HomeSquare type
@@ -15,9 +15,10 @@ pub enum TacAction {
     Discard,
     AngelEnter,
     Trade,
+    SevenSteps { steps: Vec<TacAction> },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Hash)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub struct TacMove {
     pub card: Card,
     pub action: TacAction,

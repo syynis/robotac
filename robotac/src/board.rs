@@ -238,7 +238,7 @@ impl Board {
         if matches!(mv.card, Card::Tac) && !matches!(mv.action, TacAction::Discard) {
             self.tac_undo();
         }
-        match mv.action {
+        match mv.action.clone() {
             TacAction::Step { from, to } => self.move_ball(from, to, player),
             TacAction::StepHome { from, to } => self.move_ball_in_goal(from, to, player),
             TacAction::StepInHome { from, to } => self.move_ball_to_goal(from, to, player),
@@ -260,6 +260,7 @@ impl Board {
                 };
                 self.next_player();
             }
+            TacAction::SevenSteps { steps } => todo!(),
         }
 
         // Don't run this logic if we are in trade phase
@@ -268,7 +269,7 @@ impl Board {
             if !self.jester_flag {
                 self.next_player();
             }
-            self.past_moves.push((mv, None));
+            self.past_moves.push((mv.clone(), None));
 
             if self.hands.iter().all(|h| h.is_empty()) {
                 self.deal_new();
@@ -283,7 +284,7 @@ impl Board {
             .past_moves
             .last()
             .expect("Undo only ever called with past_moves non-empty");
-        let (mv, captured) = (*mv, *captured);
+        let (mv, captured) = (mv.clone(), *captured);
         let player = self.player_to_move.prev();
         match mv.action {
             TacAction::Step { from, to } => {
@@ -325,6 +326,7 @@ impl Board {
                 self.outsides[next as usize] += 1;
             }
             TacAction::Trade => unreachable!("Can't undo trading"),
+            TacAction::SevenSteps { steps } => todo!(),
         }
     }
 
