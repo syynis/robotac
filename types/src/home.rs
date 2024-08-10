@@ -41,7 +41,7 @@ impl Home {
     }
 
     pub fn get_all_unlocked(self) -> Vec<u8> {
-        let mut home = self.clone();
+        let mut home = self;
         let mut res = Vec::new();
         while let Some(unlocked) = home.get_single_unlocked() {
             res.push(unlocked);
