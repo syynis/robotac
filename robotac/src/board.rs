@@ -440,6 +440,5 @@ mod tests {
         for i in 3..13u8 {
             assert_eq!(false, board.can_move(Square(10), Square(10).add(i)));
         }
-        println!("{:?}", board);
     }
 }

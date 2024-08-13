@@ -10,10 +10,7 @@ impl Board {
         // If in trade phase trade move for every card in hand
         if self.need_trade() {
             for card in hand.iter().sorted().dedup() {
-                moves.push(TacMove {
-                    card: *card,
-                    action: TacAction::Trade,
-                });
+                moves.push(TacMove::new(*card, TacAction::Trade));
             }
             return moves;
         }
@@ -24,10 +21,7 @@ impl Board {
                 moves.extend(self.tac_moves(player));
             }
             for card in hand.iter().sorted().dedup() {
-                moves.push(TacMove {
-                    card: *card,
-                    action: TacAction::Discard,
-                });
+                moves.push(TacMove::new(*card, TacAction::Discard));
             }
             return moves;
         }
@@ -40,10 +34,7 @@ impl Board {
         // We can't do anything so discard any card
         if moves.is_empty() {
             for card in hand.iter().sorted().dedup() {
-                moves.push(TacMove {
-                    card: *card,
-                    action: TacAction::Discard,
-                });
+                moves.push(TacMove::new(*card, TacAction::Discard));
             }
         }
 
@@ -278,10 +269,7 @@ impl Board {
                 state
                     .moves_for_card(player, last_move.card)
                     .iter()
-                    .map(|m| TacMove {
-                        card: Card::Tac,
-                        action: m.action.clone(),
-                    })
+                    .map(|m| TacMove::new(Card::Tac, m.action.clone()))
                     .collect_vec(),
             );
         }
@@ -410,11 +398,13 @@ impl Board {
             };
             let board_budget = 7 - home_budget;
             if home_budget == 7 {
-                moves.extend(home_moves.iter().map(|steps| TacMove {
-                    card: Card::Seven,
-                    action: TacAction::SevenSteps {
-                        steps: steps.to_vec(),
-                    },
+                moves.extend(home_moves.iter().map(|steps| {
+                    TacMove::new(
+                        Card::Seven,
+                        TacAction::SevenSteps {
+                            steps: steps.to_vec(),
+                        },
+                    )
                 }));
                 break;
             }
@@ -491,7 +481,6 @@ impl Board {
                 }
                 _ => unreachable!(),
             }
-            println!("steps {}", steps.len());
             for step in steps {
                 if home_moves.is_empty() {
                     moves.push(TacMove::new(
