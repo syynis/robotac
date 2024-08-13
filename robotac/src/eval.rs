@@ -5,7 +5,7 @@ use crate::board::Board;
 impl Board {
     pub fn eval(&self) -> i64 {
         // Absolute most basic eval for now. Just count the number of balls we have in home
-        if self.won() {
+        if self.won(self.current_player()) {
             return 100;
         }
         self.home(self.current_player()).amount() as i64
@@ -18,8 +18,10 @@ impl Board {
         let e = self.current_player().next();
         let p_p = self.current_player().partner();
         let e_p = self.current_player().next().partner();
-        if self.won() {
+        if self.won(p) {
             return 1000;
+        } else if self.won(e) {
+            return -1000;
         }
 
         // How many more balls do we have in goal
@@ -62,9 +64,8 @@ impl Board {
         eval
     }
 
-    fn won(&self) -> bool {
-        self.home(self.current_player()).is_full()
-            && self.home(self.current_player().partner()).is_full()
+    fn won(&self, player: Color) -> bool {
+        self.home(player).is_full() && self.home(player.partner()).is_full()
     }
 
     fn ball_in_play(&self, player: Color) -> bool {
