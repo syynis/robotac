@@ -22,6 +22,7 @@ pub const CARDS: [Card; 18] = [
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Enum, PartialOrd, Ord)]
+#[repr(u8)]
 pub enum Card {
     One,
     Two,

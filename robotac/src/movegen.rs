@@ -229,13 +229,36 @@ impl Board {
     }
 
     pub fn switching_moves(&self) -> Vec<TacMove> {
-        // n choose 2 -> n * (n-1) / 2
+        // At most n choose 2 -> n * (n-1) / 2
         // This only gets called if there are balls on the board so the length can never be 0
         let mut moves = Vec::with_capacity(
             (self.all_balls().len() * (self.all_balls().len() - 1)) as usize / 2,
         );
+        let mut same_switch = [false; 4];
+        let mut home_switch = [false; 4];
         for (idx, target1) in self.all_balls().iter().enumerate() {
+            let c1 = self.color_on(target1).unwrap();
             for target2 in self.all_balls().iter().skip(idx + 1) {
+                let c2 = self.color_on(target2).unwrap();
+                // Check if we can prune this move in case we already have one
+                // that results in the same game state
+                if c1 == c2 {
+                    if c1.home() == target1 || c1.home() == target2 {
+                        if home_switch[c1 as usize] {
+                            // Already have one switching moves with same color on home square
+                            continue;
+                        } else {
+                            home_switch[c1 as usize] = true;
+                        }
+                    } else {
+                        if same_switch[c1 as usize] {
+                            // Already have one switching moves with same color
+                            continue;
+                        } else {
+                            same_switch[c1 as usize] = true;
+                        }
+                    }
+                }
                 moves.push(TacMove::new(
                     Card::Juggler,
                     TacAction::Switch { target1, target2 },
@@ -506,6 +529,8 @@ impl Board {
 
 #[cfg(test)]
 mod tests {
+    use tac_types::ALL_COLORS;
+
     use super::*;
 
     #[test]
@@ -539,11 +564,38 @@ mod tests {
     #[test]
     fn switching_moves() {
         let mut board = Board::new();
-        for color in [Color::Black, Color::Blue, Color::Green, Color::Red] {
+        for color in ALL_COLORS {
             board.put_ball_in_play(color);
         }
         let moves = board.switching_moves();
         assert_eq!(moves.len(), 6);
+        board.move_ball(Square(0), Square(4), Color::Black);
+        board.put_ball_in_play(Color::Black);
+        board.move_ball(Square(0), Square(8), Color::Black);
+        board.put_ball_in_play(Color::Black);
+        // If we have multiple balls of the same color we can deduplicate the moves between them.
+        // There are only 2 unique possibilities, either one ball is on home square (makes ball not fresh) or both are in ring.
+        // So for each color we know the amount of moves we can prune is:
+        // same_color_cnt * (same_color_cnt - 1) / 2 - 2
+        let moves = board.switching_moves();
+        // 3 * 2 / 2 - 2 = 1
+        assert_eq!(moves.len(), 15 - 1);
+        board.move_ball(Square(0), Square(12), Color::Black);
+        board.put_ball_in_play(Color::Black);
+        let moves = board.switching_moves();
+        // 4 * 3 / 2 - 2 = 4
+        assert_eq!(moves.len(), 21 - 4);
+        for c in [Color::Blue, Color::Green, Color::Red] {
+            board.move_ball(c.home(), c.home().add(4), c);
+            board.put_ball_in_play(c);
+            board.move_ball(c.home(), c.home().add(8), c);
+            board.put_ball_in_play(c);
+            board.move_ball(c.home(), c.home().add(12), c);
+            board.put_ball_in_play(c);
+        }
+        assert_eq!(board.all_balls().len(), 16);
+        let moves = board.switching_moves();
+        assert_eq!(moves.len(), (16 * 15 / 2) - 4 * (4 * 3 / 2 - 2));
     }
 
     #[test]

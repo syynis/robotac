@@ -34,7 +34,6 @@ impl Home {
 
     pub const fn get_single_unlocked(self) -> Option<u8> {
         if !self.is_locked() && !self.is_empty() {
-            let unlocked = self.0.trailing_zeros() as u8;
             return Some(self.free());
         }
         None
