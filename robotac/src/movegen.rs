@@ -250,13 +250,11 @@ impl Board {
                         } else {
                             home_switch[c1 as usize] = true;
                         }
+                    } else if same_switch[c1 as usize] {
+                        // Already have one switching moves with same color
+                        continue;
                     } else {
-                        if same_switch[c1 as usize] {
-                            // Already have one switching moves with same color
-                            continue;
-                        } else {
-                            same_switch[c1 as usize] = true;
-                        }
+                        same_switch[c1 as usize] = true;
                     }
                 }
                 moves.push(TacMove::new(
@@ -677,31 +675,30 @@ mod tests {
     #[test]
     fn tac() {
         let mut board = Board::new();
-        let mv = TacMove {
-            card: Card::One,
-            action: TacAction::Enter,
-        };
+        let mv = TacMove::new(Card::One, TacAction::Enter);
         board.play(mv);
-        assert_eq!(
-            board
-                .color_on(board.current_player().prev().home())
-                .unwrap(),
-            Color::Black
-        );
+        assert_eq!(board.color_on(Color::Black.home()).unwrap(), Color::Black);
         assert_eq!(board.current_player(), Color::Blue);
         let moves = board.moves_for_card(board.current_player(), Card::Tac);
         assert_eq!(moves.len(), 1);
         board.play(moves[0].clone());
         assert_eq!(board.current_player(), Color::Green);
-        assert_eq!(
-            board.color_on(board.current_player().prev().prev().home()),
-            None
-        );
-        assert_eq!(
-            board
-                .color_on(board.current_player().prev().home())
-                .unwrap(),
-            Color::Blue
-        );
+        assert_eq!(board.color_on(Color::Black.home()), None);
+        assert_eq!(board.color_on(Color::Blue.home()).unwrap(), Color::Blue);
+        let moves = board.moves_for_card(board.current_player(), Card::Tac);
+        assert_eq!(moves.len(), 1);
+        board.play(moves[0].clone());
+        assert_eq!(board.current_player(), Color::Red);
+        assert_eq!(board.color_on(Color::Black.home()).unwrap(), Color::Black);
+        assert_eq!(board.color_on(Color::Blue.home()), None);
+        assert_eq!(board.color_on(Color::Green.home()).unwrap(), Color::Green);
+        let moves = board.moves_for_card(board.current_player(), Card::Tac);
+        assert_eq!(moves.len(), 1);
+        board.play(moves[0].clone());
+        assert_eq!(board.current_player(), Color::Black);
+        assert_eq!(board.color_on(Color::Black.home()), None);
+        assert_eq!(board.color_on(Color::Blue.home()).unwrap(), Color::Blue);
+        assert_eq!(board.color_on(Color::Green.home()), None);
+        assert_eq!(board.color_on(Color::Red.home()).unwrap(), Color::Red);
     }
 }

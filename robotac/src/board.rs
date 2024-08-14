@@ -238,7 +238,29 @@ impl Board {
         if matches!(mv.card, Card::Tac) && !matches!(mv.action, TacAction::Discard) {
             self.tac_undo();
         }
-        match mv.action.clone() {
+        if matches!(mv.action, TacAction::Trade) {
+            self.trade(mv.card, player);
+            if self.traded.iter().all(|t| t.is_some()) {
+                self.take_traded();
+            };
+            self.next_player();
+        } else {
+            self.apply_action(mv.action.clone(), player);
+
+            self.discarded.push(mv.card);
+            if !self.jester_flag {
+                self.next_player();
+            }
+            self.past_moves.push((mv.clone(), None));
+
+            if self.hands.iter().all(|h| h.is_empty()) {
+                self.deal_new();
+            }
+        }
+    }
+
+    pub fn apply_action(&mut self, action: TacAction, player: Color) {
+        match action {
             TacAction::Step { from, to } => self.move_ball(from, to, player),
             TacAction::StepHome { from, to } => self.move_ball_in_goal(from, to, player),
             TacAction::StepInHome { from, to } => self.move_ball_to_goal(from, to, player),
@@ -253,40 +275,13 @@ impl Board {
             TacAction::Warrior { from, to } => self.move_ball(from, to, player),
             TacAction::Discard => self.discard_flag = false,
             TacAction::AngelEnter => self.put_ball_in_play(player.next()),
-            TacAction::Trade => {
-                self.trade(mv.card, player);
-                if self.traded.iter().all(|t| t.is_some()) {
-                    self.take_traded();
-                };
-                self.next_player();
-            }
             TacAction::SevenSteps { steps } => todo!(),
-        }
-
-        // Don't run this logic if we are in trade phase
-        if !matches!(mv.action, TacAction::Trade) {
-            self.discarded.push(mv.card);
-            if !self.jester_flag {
-                self.next_player();
-            }
-            self.past_moves.push((mv.clone(), None));
-
-            if self.hands.iter().all(|h| h.is_empty()) {
-                self.deal_new();
-            }
+            TacAction::Trade => {}
         }
     }
 
-    /// Undo last move played according
-    pub fn tac_undo(&mut self) {
-        // TODO handle tac on tac chains
-        let (mv, captured) = self
-            .past_moves
-            .last()
-            .expect("Undo only ever called with past_moves non-empty");
-        let (mv, captured) = (mv.clone(), *captured);
-        let player = self.player_to_move.prev();
-        match mv.action {
+    pub fn undo_action(&mut self, action: TacAction, player: Color, captured: Option<Color>) {
+        match action {
             TacAction::Step { from, to } => {
                 self.xor(from, player);
                 self.xor(to, player);
@@ -328,6 +323,40 @@ impl Board {
             TacAction::Trade => unreachable!("Can't undo trading"),
             TacAction::SevenSteps { steps } => todo!(),
         }
+    }
+
+    /// Undo last move played according
+    pub fn tac_undo(&mut self) {
+        let (mv, captured) = self
+            .past_moves
+            .pop() // Pop here so recursive tac works
+            .expect("Undo only ever called with past_moves non-empty");
+        let player = self.player_to_move.prev();
+        self.undo_action(mv.action.clone(), player, captured);
+        if matches!(mv.card, Card::Tac) {
+            self.tac_undo_recursive(true, player);
+        }
+        // Push back when we are done
+        self.past_moves.push((mv, captured));
+    }
+
+    fn tac_undo_recursive(&mut self, redo: bool, player: Color) {
+        let (mv, captured) = self
+            .past_moves
+            .pop() // Pop here so recursive tac works
+            .expect("Undo only ever called with past_moves non-empty");
+        let player = player.prev();
+        if redo {
+            self.apply_action(mv.action.clone(), player);
+        } else {
+            self.undo_action(mv.action.clone(), player, captured);
+        }
+
+        if matches!(mv.card, Card::Tac) {
+            self.tac_undo_recursive(!redo, player);
+        }
+        // Push back when we are done
+        self.past_moves.push((mv, captured));
     }
 
     /// Set card to be traded
