@@ -1,11 +1,12 @@
+use smallvec::SmallVec;
 use tac_types::Card;
 
-#[derive(Clone)]
-pub struct Hand(pub Vec<Card>);
+#[derive(Clone, Debug)]
+pub struct Hand(pub SmallVec<Card, 6>);
 
 impl Hand {
     pub fn new(cards: Vec<Card>) -> Self {
-        Self(cards)
+        Self(cards.into())
     }
 
     pub fn is_empty(&self) -> bool {
@@ -14,6 +15,15 @@ impl Hand {
 
     pub fn push(&mut self, card: Card) {
         self.0.push(card);
+    }
+
+    pub fn remove(&mut self, card: Card) {
+        self.0.remove(
+            self.0
+                .iter()
+                .position(|x| *x == card)
+                .expect("We require the card to be in hand"),
+        );
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Card> + '_ {

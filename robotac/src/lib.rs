@@ -65,7 +65,7 @@ impl GameState for Board {
     }
 
     fn legal_moves(&self) -> Self::MoveList {
-        self.get_moves(self.current_player(), self.hand(self.current_player()))
+        self.get_moves(self.current_player())
     }
 
     fn make_move(&mut self, mv: &Self::Move) {

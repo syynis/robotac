@@ -9,5 +9,6 @@ mcts = {path = "../mcts"}
 enum-map = {workspace = true}
 rand = {workspace = true}
 itertools = {workspace = true}
+smallvec = {workspace = true}
 
 [features]

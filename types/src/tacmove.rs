@@ -1,4 +1,6 @@
-use crate::{square::Square, Card};
+use smallvec::SmallVec;
+
+use crate::{square::Square, Card, Color};
 
 #[derive(Debug, Clone, PartialEq, Hash)]
 pub enum TacAction {
@@ -28,4 +30,10 @@ impl TacMove {
     pub fn new(card: Card, action: TacAction) -> Self {
         Self { card, action }
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TacMoveResult {
+    Capture(Color),
+    SevenCaptures(SmallVec<Color, 7>),
 }

@@ -5,4 +5,6 @@ edition = "2021"
 
 [dependencies]
 enum-map = {workspace = true}
+smallvec = {workspace = true}
+
 [features]

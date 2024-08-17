@@ -1,7 +1,10 @@
 use std::ops::{BitOr, BitXor};
 
-use rand::thread_rng;
-use tac_types::{BitBoard, Card, Color, Home, Square, TacAction, TacMove, ALL_COLORS};
+use itertools::Itertools;
+use rand::{rngs::StdRng, thread_rng, SeedableRng};
+use tac_types::{
+    BitBoard, Card, Color, Home, Square, TacAction, TacMove, TacMoveResult, ALL_COLORS,
+};
 
 use crate::{deck::Deck, hand::Hand};
 
@@ -19,7 +22,7 @@ pub struct Board {
     trade_flag: bool,
     deck: Deck,
     discarded: Vec<Card>,
-    past_moves: Vec<(TacMove, Option<Color>)>,
+    past_moves: Vec<(TacMove, Option<TacMoveResult>)>,
     hands: [Hand; 4],
     traded: [Option<Card>; 4],
     one_or_thirteen: [bool; 4],
@@ -57,21 +60,49 @@ impl Board {
         s.deal_new();
         s
     }
+    pub fn new_with_seed(seed: u64) -> Self {
+        let mut rng = StdRng::seed_from_u64(seed);
+        const EMPTY: Vec<Card> = Vec::new();
+
+        let mut s = Self {
+            balls: [BitBoard::EMPTY; 4],
+            player_to_move: Color::Black,
+            homes: [Home::EMPTY; 4],
+            outsides: [4; 4],
+            fresh: [true; 4],
+            discard_flag: false,
+            jester_flag: false,
+            devil_flag: false,
+            trade_flag: false,
+            deck: Deck::new(&mut rng),
+            discarded: Vec::new(),
+            past_moves: Vec::new(),
+            hands: [EMPTY; 4].map(Hand::new),
+            traded: [None; 4],
+            one_or_thirteen: [false; 4],
+        };
+
+        s.deal_new();
+        s
+    }
     /// Put ball from given player onto the board.
     /// Captures any ball that was on the starting position.
-    pub fn put_ball_in_play(&mut self, color: Color) {
-        self.capture(color.home());
+    pub fn put_ball_in_play(&mut self, color: Color) -> Option<Color> {
+        let capture = self.capture(color.home());
         self.xor(color.home(), color);
         // Don't need to check for underflow here
         self.outsides[color as usize] -= 1;
+        capture
     }
 
     /// Move ball from `start` to `end`.
     /// Captures any ball that was on the `end`.
-    pub fn move_ball(&mut self, start: Square, end: Square, color: Color) {
-        self.capture(end);
+    pub fn move_ball(&mut self, start: Square, end: Square, color: Color) -> Option<Color> {
+        // Need to capture first in case color on start and end is the same
+        let capture = self.capture(end);
         self.xor(start, color);
         self.xor(end, color);
+        capture
     }
 
     /// Move ball from `start` to `goal_pos`.
@@ -98,7 +129,7 @@ impl Board {
     }
 
     /// Toggles the state of a square for a given player.
-    fn xor(&mut self, square: Square, color: Color) {
+    pub(crate) fn xor(&mut self, square: Square, color: Color) {
         self.balls[color as usize] ^= square.bitboard();
     }
 
@@ -193,7 +224,7 @@ impl Board {
     }
 
     /// Returns past moves
-    pub fn past_moves(&self) -> &Vec<(TacMove, Option<Color>)> {
+    pub fn past_moves(&self) -> &Vec<(TacMove, Option<TacMoveResult>)> {
         &self.past_moves
     }
 
@@ -235,7 +266,9 @@ impl Board {
         self.jester_flag = false;
         self.devil_flag = false;
         let player = self.player_to_move;
-        if matches!(mv.card, Card::Tac) && !matches!(mv.action, TacAction::Discard) {
+        if matches!(mv.card, Card::Tac)
+            && !matches!(mv.action, TacAction::Discard | TacAction::Trade)
+        {
             self.tac_undo();
         }
         if matches!(mv.action, TacAction::Trade) {
@@ -245,13 +278,14 @@ impl Board {
             };
             self.next_player();
         } else {
-            self.apply_action(mv.action.clone(), player);
+            let captured = self.apply_action(mv.action.clone(), player);
 
+            self.hands[player as usize].remove(mv.card);
             self.discarded.push(mv.card);
             if !self.jester_flag {
                 self.next_player();
             }
-            self.past_moves.push((mv.clone(), None));
+            self.past_moves.push((mv.clone(), captured));
 
             if self.hands.iter().all(|h| h.is_empty()) {
                 self.deal_new();
@@ -259,33 +293,60 @@ impl Board {
         }
     }
 
-    pub fn apply_action(&mut self, action: TacAction, player: Color) {
+    pub fn apply_action(&mut self, action: TacAction, player: Color) -> Option<TacMoveResult> {
         match action {
-            TacAction::Step { from, to } => self.move_ball(from, to, player),
+            TacAction::Step { from, to } => {
+                return self.move_ball(from, to, player).map(TacMoveResult::Capture)
+            }
             TacAction::StepHome { from, to } => self.move_ball_in_goal(from, to, player),
             TacAction::StepInHome { from, to } => self.move_ball_to_goal(from, to, player),
             TacAction::Switch { target1, target2 } => self.swap_balls(target1, target2),
-            TacAction::Enter => self.put_ball_in_play(player),
+            TacAction::Enter => return self.put_ball_in_play(player).map(TacMoveResult::Capture),
             TacAction::Suspend => self.discard_flag = true,
             TacAction::Jester => {
                 self.jester_flag = true;
                 self.hands.rotate_right(1);
             }
             TacAction::Devil => self.devil_flag = true,
-            TacAction::Warrior { from, to } => self.move_ball(from, to, player),
+            TacAction::Warrior { from, to } => {
+                return self.move_ball(from, to, player).map(TacMoveResult::Capture)
+            }
             TacAction::Discard => self.discard_flag = false,
-            TacAction::AngelEnter => self.put_ball_in_play(player.next()),
-            TacAction::SevenSteps { steps } => todo!(),
+            TacAction::AngelEnter => {
+                return self
+                    .put_ball_in_play(player.next())
+                    .map(TacMoveResult::Capture)
+            }
+            TacAction::SevenSteps { steps } => {
+                todo!();
+                steps
+                    .iter()
+                    .sorted_by_key(|s| match s {
+                        TacAction::Step { from, to } => to.0,
+                        TacAction::StepHome { from, to } => 64 + from,
+                        TacAction::StepInHome { from, to } => {
+                            from.0 + from.distance_to_home(player)
+                        }
+                        _ => unreachable!(""),
+                    })
+                    .rev();
+            }
             TacAction::Trade => {}
         }
+        None
     }
 
-    pub fn undo_action(&mut self, action: TacAction, player: Color, captured: Option<Color>) {
+    pub fn undo_action(
+        &mut self,
+        action: TacAction,
+        player: Color,
+        captured: Option<TacMoveResult>,
+    ) {
         match action {
             TacAction::Step { from, to } => {
                 self.xor(from, player);
                 self.xor(to, player);
-                if let Some(captured) = captured {
+                if let Some(TacMoveResult::Capture(captured)) = captured {
                     self.outsides[captured as usize] -= 1;
                     self.xor(to, captured);
                 }
@@ -299,26 +360,33 @@ impl Board {
             TacAction::Enter => {
                 self.xor(player.home(), player);
                 self.outsides[player as usize] += 1;
+                if let Some(TacMoveResult::Capture(captured)) = captured {
+                    self.outsides[captured as usize] -= 1;
+                    self.xor(player.home(), captured);
+                }
             }
             TacAction::Suspend => self.discard_flag = false,
-            TacAction::Jester => {
-                self.jester_flag = false;
-                self.hands.rotate_left(1);
-            }
-            TacAction::Devil => self.devil_flag = false,
+            TacAction::Jester => {}
+            TacAction::Devil => {}
             TacAction::Warrior { from, to } => {
-                let captured = captured.expect("Warrior always captures");
-                self.outsides[captured as usize] -= 1;
-                if from != to {
-                    self.xor(from, player);
+                if let TacMoveResult::Capture(captured) = captured.expect("Warrior always captures")
+                {
+                    self.outsides[captured as usize] -= 1;
+                    if from != to {
+                        self.xor(from, player);
+                    }
+                    self.xor(to, captured);
                 }
-                self.xor(to, captured);
             }
-            TacAction::Discard => self.discard_flag = true,
+            TacAction::Discard => {}
             TacAction::AngelEnter => {
                 let next = player.next();
                 self.xor(next.home(), next);
                 self.outsides[next as usize] += 1;
+                if let Some(TacMoveResult::Capture(captured)) = captured {
+                    self.outsides[captured as usize] -= 1;
+                    self.xor(next.home(), captured);
+                }
             }
             TacAction::Trade => unreachable!("Can't undo trading"),
             TacAction::SevenSteps { steps } => todo!(),
@@ -332,7 +400,7 @@ impl Board {
             .pop() // Pop here so recursive tac works
             .expect("Undo only ever called with past_moves non-empty");
         let player = self.player_to_move.prev();
-        self.undo_action(mv.action.clone(), player, captured);
+        self.undo_action(mv.action.clone(), player, captured.clone());
         if matches!(mv.card, Card::Tac) {
             self.tac_undo_recursive(true, player);
         }
@@ -349,7 +417,7 @@ impl Board {
         if redo {
             self.apply_action(mv.action.clone(), player);
         } else {
-            self.undo_action(mv.action.clone(), player, captured);
+            self.undo_action(mv.action.clone(), player, captured.clone());
         }
 
         if matches!(mv.card, Card::Tac) {
@@ -361,6 +429,7 @@ impl Board {
 
     /// Set card to be traded
     pub fn trade(&mut self, card: Card, player: Color) {
+        self.hands[player as usize].remove(card);
         self.traded[player.partner() as usize] = Some(card);
     }
 
@@ -378,7 +447,7 @@ impl Board {
 
     /// Returns true if we are in trade phase
     pub fn need_trade(&self) -> bool {
-        self.trade_flag && self.traded[self.player_to_move as usize].is_none()
+        self.trade_flag && self.traded[self.player_to_move.partner() as usize].is_none()
     }
 
     /// Begin trade phase
