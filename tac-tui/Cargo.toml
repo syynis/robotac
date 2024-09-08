@@ -1,0 +1,12 @@
+[package]
+name = "tac-tui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tac-types = {path = "../types"}
+robotac = {path = "../robotac"}
+itertools = {workspace = true}
+smallvec = {workspace = true}
+ratatui = {workspace = true}
+clap = {workspace = true}

@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use smallvec::SmallVec;
 
 use crate::{square::Square, Card, Color};
@@ -24,6 +26,12 @@ pub enum TacAction {
 pub struct TacMove {
     pub card: Card,
     pub action: TacAction,
+}
+
+impl Display for TacMove {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?} : {:?}", self.card, self.action)
+    }
 }
 
 impl TacMove {
