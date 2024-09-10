@@ -20,46 +20,34 @@ use ratatui::{
 use robotac::board::Board;
 use tac_types::{Square, TacMove};
 
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
-struct BoardPoint {
-    x: f64,
-    y: f64,
-    color: Color,
+use crate::{board::BoardView, moves::MoveList};
+
+enum Mode {
+    Board,
+    Moves,
+}
+
+pub enum Message {
+    Quit,
+    StateChange,
 }
 
 pub struct App {
     board: Board,
-    points: [BoardPoint; 64],
-    focused_square: u8,
-    marker: Marker,
-}
-
-fn tac_color_to_term_color(tac_color: tac_types::Color) -> Color {
-    match tac_color {
-        tac_types::Color::Black => Color::Black,
-        tac_types::Color::Blue => Color::Blue,
-        tac_types::Color::Green => Color::Green,
-        tac_types::Color::Red => Color::Red,
-    }
+    mode: Mode,
+    board_view: BoardView,
+    move_list: MoveList,
 }
 
 impl App {
     pub fn new() -> Self {
-        let mut points = [BoardPoint::default(); 64];
-        for i in (0..64) {
-            let angle = i as f64 / 64.0 * TAU;
-            let (x, y) = (angle.cos() * 64.0, angle.sin() * 64.0);
-            points[i] = BoardPoint {
-                x,
-                y,
-                color: Color::White,
-            }
-        }
+        let board = Board::new();
+        let move_list = MoveList::new(&board);
         Self {
-            board: Board::new(),
-            points,
-            focused_square: 0,
-            marker: Marker::HalfBlock,
+            board,
+            mode: Mode::Board,
+            board_view: BoardView::new(),
+            move_list,
         }
     }
 
@@ -71,16 +59,22 @@ impl App {
             terminal.draw(|frame| self.draw(frame))?;
             let timeout = tick_rate.saturating_sub(last_tick.elapsed());
             if event::poll(timeout)? {
-                if let Event::Key(key) = event::read()? {
-                    match key.code {
+                let event = event::read()?;
+                let mut pass_down = false;
+                if let Event::Key(key_ev) = event {
+                    match key_ev.code {
                         KeyCode::Char('q') => return Ok(()),
-                        KeyCode::Right | KeyCode::Char('l') => {
-                            self.focused_square = (self.focused_square + 63) % 64;
+                        KeyCode::Char('h') => self.mode = Mode::Board,
+                        KeyCode::Char('l') => self.mode = Mode::Moves,
+                        _ => {
+                            pass_down = true;
                         }
-                        KeyCode::Left | KeyCode::Char('h') => {
-                            self.focused_square = (self.focused_square + 1) % 64;
-                        }
-                        _ => {}
+                    }
+                }
+                if pass_down {
+                    match self.mode {
+                        Mode::Board => self.board_view.update(&event),
+                        Mode::Moves => self.move_list.update(&event),
                     }
                 }
             }
@@ -95,17 +89,13 @@ impl App {
         Ok(())
     }
 
-    fn on_tick(&mut self) {
-        self.points
-            .iter_mut()
-            .enumerate()
-            .for_each(|(idx, mut point)| {
-                // This is a valid casting because `points` has a fixed size of 64
-                let idx = idx as u8;
-                if let Some(c) = self.board.color_on(Square(idx)) {
-                    point.color = tac_color_to_term_color(c);
-                }
-            });
+    pub fn update(&mut self) -> io::Result<Message> {}
+
+    fn on_state_change(&mut self) {
+        match self.mode {
+            Mode::Board => self.board_view.on_change(&self.board),
+            Mode::Moves => self.move_list.on_change(&self.board),
+        }
     }
 
     fn draw(&self, frame: &mut Frame) {
@@ -114,56 +104,7 @@ impl App {
         let vertical = Layout::vertical([Constraint::Percentage(75), Constraint::Percentage(25)]);
         let [board, right] = horizontal.areas(frame.area());
         let [moves, hand] = vertical.areas(right);
-        frame.render_widget(self.board_canvas(), board);
-        frame.render_widget(self.moves_list(), moves);
-    }
-
-    fn board_canvas(&self) -> impl Widget + '_ {
-        // diameter + padding
-        let size = 64.0 + 16.0;
-        let bounds = [-size, size];
-        Canvas::default()
-            .block(Block::bordered().title("Board"))
-            .marker(self.marker)
-            .paint(move |ctx| {
-                ctx.draw(&ColoredPoints {
-                    points: &self.points,
-                });
-                let angle = self.focused_square as f64 / 64.0 * TAU;
-                let (x, y) = (angle.cos() * 70.0, angle.sin() * 70.0);
-                ctx.draw(&Rectangle {
-                    x,
-                    y,
-                    width: 0.01,
-                    height: 0.01,
-                    color: Color::Yellow,
-                })
-            })
-            .x_bounds(bounds)
-            .y_bounds(bounds)
-    }
-
-    fn moves_list(&self) -> impl Widget + '_ {
-        let block = Block::new()
-            .title(Line::raw("Moves").left_aligned())
-            .borders(Borders::TOP);
-        let moves = self.board.get_moves(self.board.current_player());
-        let items = moves.iter().map(|e| format!("{}", e)).into_iter();
-        List::new(items).block(block).highlight_symbol(">")
-    }
-}
-
-#[derive(Debug, Default, Clone, PartialEq)]
-struct ColoredPoints<'a> {
-    pub points: &'a [BoardPoint],
-}
-
-impl<'a> Shape for ColoredPoints<'a> {
-    fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
-        for BoardPoint { x, y, color } in self.points {
-            if let Some((x, y)) = painter.get_point(*x, *y) {
-                painter.paint(x, y, *color);
-            }
-        }
+        frame.render_widget(self.board_view.draw(), board);
+        frame.render_widget(self.move_list.draw(), moves);
     }
 }
