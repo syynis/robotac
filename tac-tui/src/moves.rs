@@ -1,9 +1,13 @@
+use std::io;
+
 use ratatui::{
     crossterm::event::{Event, KeyCode},
     text::Line,
     widgets::{Block, Borders, List, StatefulWidget, Widget},
 };
 use tac_types::{Card, TacMove};
+
+use crate::app::Message;
 
 pub struct MoveList {
     moves: Vec<TacMove>,
@@ -26,14 +30,18 @@ impl MoveList {
                 KeyCode::Left | KeyCode::Char('k') => {
                     self.selected = self.selected.saturating_sub(1);
                 }
-                KeyCode::Enter => {}
+                KeyCode::Enter => {
+                    let mv = self.moves[self.selected].clone();
+                    return Ok(Message::MakeMove(mv));
+                }
                 _ => {}
             },
             _ => {}
         }
+        Ok(Message::Continue)
     }
     pub fn on_state_change(&mut self, board: &robotac::board::Board) {
-        MoveList::new(board);
+        *self = MoveList::new(board);
     }
 
     pub fn draw(&self) -> impl Widget + '_ {

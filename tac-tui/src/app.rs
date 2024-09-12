@@ -28,8 +28,9 @@ enum Mode {
 }
 
 pub enum Message {
+    Continue,
     Quit,
-    StateChange,
+    MakeMove(TacMove),
 }
 
 pub struct App {
@@ -52,50 +53,48 @@ impl App {
     }
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> io::Result<()> {
-        let tick_rate = Duration::from_millis(8);
-        let mut last_tick = Instant::now();
-        let mut need_update = false;
         loop {
             terminal.draw(|frame| self.draw(frame))?;
-            let timeout = tick_rate.saturating_sub(last_tick.elapsed());
-            if event::poll(timeout)? {
-                let event = event::read()?;
-                let mut pass_down = false;
-                if let Event::Key(key_ev) = event {
-                    match key_ev.code {
-                        KeyCode::Char('q') => return Ok(()),
-                        KeyCode::Char('h') => self.mode = Mode::Board,
-                        KeyCode::Char('l') => self.mode = Mode::Moves,
-                        _ => {
-                            pass_down = true;
-                        }
-                    }
+            match self.update()? {
+                Message::Continue => {}
+                Message::Quit => break,
+                Message::MakeMove(mv) => {
+                    self.board.play(mv);
+                    self.on_state_change();
                 }
-                if pass_down {
-                    match self.mode {
-                        Mode::Board => self.board_view.update(&event),
-                        Mode::Moves => self.move_list.update(&event),
-                    }
-                }
-            }
-
-            if last_tick.elapsed() >= tick_rate {
-                if need_update {
-                    self.on_tick();
-                }
-                last_tick = Instant::now();
             }
         }
         Ok(())
     }
 
-    pub fn update(&mut self) -> io::Result<Message> {}
+    pub fn update(&mut self) -> io::Result<Message> {
+        if event::poll(Duration::from_millis(100))? {
+            let event = event::read()?;
+            let mut pass_down = false;
+            if let Event::Key(key_ev) = event {
+                match key_ev.code {
+                    KeyCode::Char('q') => return Ok(Message::Quit),
+                    KeyCode::Char('h') => self.mode = Mode::Board,
+                    KeyCode::Char('l') => self.mode = Mode::Moves,
+                    _ => {
+                        pass_down = true;
+                    }
+                }
+            }
+            if pass_down {
+                return match self.mode {
+                    Mode::Board => self.board_view.update(&event),
+                    Mode::Moves => self.move_list.update(&event),
+                };
+            }
+        }
+
+        Ok(Message::Continue)
+    }
 
     fn on_state_change(&mut self) {
-        match self.mode {
-            Mode::Board => self.board_view.on_change(&self.board),
-            Mode::Moves => self.move_list.on_change(&self.board),
-        }
+        self.board_view.on_state_change(&self.board);
+        self.move_list.on_state_change(&self.board);
     }
 
     fn draw(&self, frame: &mut Frame) {

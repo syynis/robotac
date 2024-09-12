@@ -1,17 +1,17 @@
-use std::f64::consts::TAU;
+use std::{f64::consts::TAU, io};
 
 use ratatui::{
     crossterm::event::{Event, KeyCode},
     style::Color,
     symbols::Marker,
     widgets::{
-        canvas::{Canvas, Rectangle, Shape},
+        canvas::{Canvas, Circle, Rectangle, Shape},
         Block, Widget,
     },
 };
-use tac_types::Square;
+use tac_types::{Square, ALL_COLORS};
 
-use crate::app::App;
+use crate::app::{App, Message};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 struct BoardPoint {
@@ -37,6 +37,7 @@ impl<'a> Shape for ColoredPoints<'a> {
 
 pub struct BoardView {
     points: [BoardPoint; 64],
+    outside: [u8; 4],
     focused_square: u8,
 }
 
@@ -49,16 +50,17 @@ impl BoardView {
             points[i] = BoardPoint {
                 x,
                 y,
-                color: Color::White,
+                color: Color::Rgb(255, 255, 255),
             }
         }
         Self {
             points,
+            outside: [4; 4],
             focused_square: 0,
         }
     }
 
-    pub fn update(&mut self, event: &Event) {
+    pub fn update(&mut self, event: &Event) -> io::Result<Message> {
         match event {
             Event::Key(key) => match key.code {
                 KeyCode::Right | KeyCode::Char('j') => {
@@ -71,18 +73,19 @@ impl BoardView {
             },
             _ => {}
         }
+        Ok(Message::Continue)
     }
-    pub fn on_change(&mut self, board: &robotac::board::Board) {
-        self.points
-            .iter_mut()
-            .enumerate()
-            .for_each(|(idx, mut point)| {
-                // This is a valid casting because `points` has a fixed size of 64
-                let idx = idx as u8;
-                if let Some(c) = board.color_on(Square(idx)) {
-                    point.color = tac_color_to_term_color(c);
-                }
-            });
+    pub fn on_state_change(&mut self, board: &robotac::board::Board) {
+        for (idx, p) in self.points.iter_mut().enumerate() {
+            // This is a valid casting because `points` has a fixed size of 64
+            let idx = idx as u8;
+            if let Some(c) = board.color_on(Square(idx)) {
+                p.color = tac_color_to_term_color(c);
+            }
+        }
+        for (idx, c) in ALL_COLORS.iter().enumerate() {
+            self.outside[idx] = board.num_outside(*c);
+        }
     }
 
     pub fn draw(&self) -> impl Widget + '_ {
@@ -104,7 +107,21 @@ impl BoardView {
                     width: 0.01,
                     height: 0.01,
                     color: Color::Yellow,
-                })
+                });
+                let dist = 64.0;
+                let idx_pos = [(dist, -dist), (dist, dist), (-dist, dist), (-dist, -dist)];
+                for (idx, amount) in self.outside.iter().enumerate() {
+                    let (start_x, start_y) = idx_pos[idx];
+                    for i in 0..*amount {
+                        ctx.draw(&Rectangle {
+                            x: start_x + (i * 3) as f64,
+                            y: start_y,
+                            width: 0.1,
+                            height: 0.1,
+                            color: tac_color_to_term_color(ALL_COLORS[idx]),
+                        });
+                    }
+                }
             })
             .x_bounds(bounds)
             .y_bounds(bounds)
