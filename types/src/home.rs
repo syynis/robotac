@@ -17,7 +17,7 @@ impl Home {
     }
 
     pub const fn is_free(self, pos: u8) -> bool {
-        self.0 & (1 << pos) != 0
+        self.0 & (1 << pos) == 0
     }
 
     pub const fn amount(self) -> u8 {
