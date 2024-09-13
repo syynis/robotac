@@ -54,7 +54,9 @@ impl Board {
             Card::Seven => {
                 // NOTE The number of possible seven moves scales extremely unwell for 3 (~7^2) and 4 (~7^3) moveable balls
                 // Consider special casing them so move evaluation can prune them effectively with expert knowledge
-                if !self.home(player).is_locked() || self.can_play(player) {
+                if (!self.home(player).is_empty() && !self.home(player).is_locked())
+                    || self.can_play(player)
+                {
                     moves.extend(self.seven_moves(player));
                 }
             }
