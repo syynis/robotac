@@ -1,10 +1,8 @@
 use ratatui::{
-    crossterm::event::{Event, KeyCode},
-    text::Line,
-    widgets::{Block, Borders, List, Paragraph, StatefulWidget, Widget},
+    crossterm::event::Event,
+    widgets::{Paragraph, Widget},
 };
 use robotac::board::Board;
-use tac_types::{Card, TacMove};
 
 use crate::app::Message;
 

@@ -1,11 +1,9 @@
-use std::io;
-
 use ratatui::{
     crossterm::event::{Event, KeyCode},
     text::Line,
-    widgets::{Block, Borders, List, StatefulWidget, Widget},
+    widgets::{Block, Borders, List, Widget},
 };
-use tac_types::{Card, TacMove};
+use tac_types::TacMove;
 
 use crate::app::Message;
 

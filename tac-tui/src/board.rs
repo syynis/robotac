@@ -1,17 +1,17 @@
-use std::{f64::consts::TAU, io};
+use std::f64::consts::TAU;
 
 use ratatui::{
     crossterm::event::{Event, KeyCode},
     style::Color,
     symbols::Marker,
     widgets::{
-        canvas::{Canvas, Circle, Rectangle, Shape},
+        canvas::{Canvas, Rectangle, Shape},
         Block, Widget,
     },
 };
 use tac_types::{Square, ALL_COLORS};
 
-use crate::app::{App, Message};
+use crate::app::Message;
 
 const CANVAS_SIZE: f64 = 256.0;
 const CANVAS_PADDING: f64 = 32.0;
@@ -47,7 +47,7 @@ pub struct BoardView {
 impl BoardView {
     pub fn new() -> Self {
         let mut points = [BoardPoint::default(); 64];
-        for i in (0..64) {
+        for i in 0..64 {
             let angle = i as f64 / 64.0 * TAU;
             let (x, y) = (angle.cos() * CANVAS_SIZE, angle.sin() * CANVAS_SIZE);
             points[i] = BoardPoint {

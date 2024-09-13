@@ -1,35 +1,25 @@
-use std::{
-    f64::consts::TAU,
-    io,
-    time::{Duration, Instant},
-};
+use std::{io, time::Duration};
 
-use itertools::Itertools;
 use ratatui::{
     crossterm::event::{self, Event, KeyCode},
     layout::{Constraint, Layout, Rect},
-    style::{palette::tailwind::SLATE, Color, Modifier, Style, Stylize},
-    symbols::Marker,
-    text::{Line, Text},
-    widgets::{
-        canvas::{Canvas, Circle, Map, MapResolution, Points, Rectangle, Shape},
-        Block, Borders, List, ListItem, Widget,
-    },
     DefaultTerminal, Frame,
 };
 use robotac::board::Board;
-use tac_types::{Square, TacMove};
+use tac_types::TacMove;
 
-use crate::{board::BoardView, debug::DebugView, moves::MoveList};
+use crate::{board::BoardView, debug::DebugView, moves::MoveList, seed_input::SeedInput};
 
 enum Mode {
     Board,
     Moves,
+    SeedEdit,
 }
 
 pub enum Message {
     Quit,
     MakeMove(TacMove),
+    Reset(Option<u64>),
 }
 
 pub struct App {
@@ -38,18 +28,23 @@ pub struct App {
     board_view: BoardView,
     move_list: MoveList,
     debug: DebugView,
+    seed_input: SeedInput,
+    previous_seed: u64,
 }
 
 impl App {
     pub fn new() -> Self {
-        let board = Board::new();
+        let previous_seed = 0;
+        let board = Board::new_with_seed(previous_seed);
         let move_list = MoveList::new(&board);
         Self {
             board,
-            mode: Mode::Board,
+            mode: Mode::Moves,
             board_view: BoardView::new(),
             move_list,
             debug: DebugView,
+            seed_input: SeedInput::new(),
+            previous_seed,
         }
     }
 
@@ -68,6 +63,13 @@ impl App {
                         self.board.play(mv);
                         self.on_state_change();
                     }
+                    Message::Reset(seed) => {
+                        let seed = seed.unwrap_or(self.previous_seed);
+                        self.new_board(seed);
+                        self.on_state_change();
+                        self.mode = Mode::Moves;
+                        self.previous_seed = seed;
+                    }
                 }
             }
         }
@@ -83,6 +85,8 @@ impl App {
                     KeyCode::Char('q') => return Some(Message::Quit),
                     KeyCode::Char('h') => self.mode = Mode::Board,
                     KeyCode::Char('l') => self.mode = Mode::Moves,
+                    KeyCode::Char('n') => self.mode = Mode::SeedEdit,
+                    KeyCode::Char('r') => return Some(Message::Reset(None)),
                     _ => {
                         pass_down = true;
                     }
@@ -92,6 +96,7 @@ impl App {
                 return match self.mode {
                     Mode::Board => self.board_view.update(&event),
                     Mode::Moves => self.move_list.update(&event),
+                    Mode::SeedEdit => self.seed_input.update(&event),
                 };
             }
         }
@@ -112,5 +117,14 @@ impl App {
         frame.render_widget(self.board_view.draw(), board);
         frame.render_widget(self.move_list.draw(), moves);
         frame.render_widget(self.debug.draw(&self.board), debug);
+        if matches!(self.mode, Mode::SeedEdit) {
+            let area = Rect {
+                x: frame.area().width / 2 - 10,
+                y: frame.area().height / 2 - 1,
+                width: 30,
+                height: 3,
+            };
+            frame.render_widget(self.seed_input.draw(), area);
+        }
     }
 }

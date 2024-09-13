@@ -1,11 +1,10 @@
-use std::io;
-
 use app::App;
 
 pub mod app;
 pub mod board;
 pub mod debug;
 pub mod moves;
+pub mod seed_input;
 
 fn main() {
     let terminal = ratatui::init();
