@@ -11,7 +11,6 @@ use tac_types::TacMove;
 use crate::{board::BoardView, debug::DebugView, moves::MoveList, seed_input::SeedInput};
 
 enum Mode {
-    Board,
     Moves,
     SeedEdit,
 }
@@ -89,8 +88,7 @@ impl App {
             if let Event::Key(key_ev) = event {
                 match key_ev.code {
                     KeyCode::Char('q') => return Some(Message::Quit),
-                    KeyCode::Char('h') => self.mode = Mode::Board,
-                    KeyCode::Char('l') => self.mode = Mode::Moves,
+                    KeyCode::Char('m') => self.mode = Mode::Moves,
                     KeyCode::Char('n') => self.mode = Mode::SeedEdit,
                     KeyCode::Char('r') => return Some(Message::Reset(None)),
                     _ => {
@@ -100,7 +98,6 @@ impl App {
             }
             if pass_down {
                 return match self.mode {
-                    Mode::Board => self.board_view.update(&event),
                     Mode::Moves => self.move_list.update(&event),
                     Mode::SeedEdit => self.seed_input.update(&event),
                 };

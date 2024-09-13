@@ -1,7 +1,7 @@
 use std::f64::consts::TAU;
 
 use ratatui::{
-    crossterm::event::{Event, KeyCode},
+    crossterm::event::Event,
     style::Color,
     symbols::Marker,
     widgets::{
@@ -9,7 +9,7 @@ use ratatui::{
         Block, Widget,
     },
 };
-use tac_types::{Square, ALL_COLORS};
+use tac_types::{Home, Square, ALL_COLORS};
 
 use crate::app::Message;
 
@@ -41,7 +41,7 @@ impl<'a> Shape for ColoredPoints<'a> {
 pub struct BoardView {
     points: [BoardPoint; 64],
     outside: [u8; 4],
-    focused_square: u8,
+    homes: [Home; 4],
 }
 
 impl Default for BoardView {
@@ -65,22 +65,11 @@ impl BoardView {
         Self {
             points,
             outside: [4; 4],
-            focused_square: 0,
+            homes: [Home::default(); 4],
         }
     }
 
-    pub fn update(&mut self, event: &Event) -> Option<Message> {
-        if let Event::Key(key) = event {
-            match key.code {
-                KeyCode::Right | KeyCode::Char('j') => {
-                    self.focused_square = (self.focused_square + 63) % 64;
-                }
-                KeyCode::Left | KeyCode::Char('k') => {
-                    self.focused_square = (self.focused_square + 1) % 64;
-                }
-                _ => {}
-            }
-        }
+    pub fn update(&mut self, _event: &Event) -> Option<Message> {
         None
     }
     pub fn on_state_change(&mut self, board: &robotac::board::Board) {
@@ -88,13 +77,14 @@ impl BoardView {
             // This is a valid casting because `points` has a fixed size of 64
             let idx = idx as u8;
             if let Some(c) = board.color_on(Square(idx)) {
-                p.color = tac_color_to_term_color(c);
+                p.color = term_color(c);
             } else {
                 p.color = Color::Rgb(255, 255, 255);
             }
         }
         for (idx, c) in ALL_COLORS.iter().enumerate() {
             self.outside[idx] = board.num_outside(*c);
+            self.homes[idx] = board.home(*c);
         }
     }
 
@@ -109,18 +99,54 @@ impl BoardView {
                 ctx.draw(&ColoredPoints {
                     points: &self.points,
                 });
-                let angle = self.focused_square as f64 / 64.0 * TAU;
-                let (x, y) = (
-                    angle.cos() * (CANVAS_SIZE + 16.0),
-                    angle.sin() * (CANVAS_SIZE + 16.0),
-                );
-                ctx.draw(&Rectangle {
-                    x,
-                    y,
-                    width: 0.01,
-                    height: 0.01,
-                    color: Color::Yellow,
-                });
+
+                let resolution = 4;
+                for i in 0..64 / resolution {
+                    let angle = (i * resolution) as f64 / 64.0 * TAU;
+                    let (x, y) = (
+                        angle.cos() * (CANVAS_SIZE + 16.0),
+                        angle.sin() * (CANVAS_SIZE + 16.0),
+                    );
+                    if i % resolution == 0 {
+                        ctx.draw(&Rectangle {
+                            x,
+                            y,
+                            width: 0.01,
+                            height: 0.01,
+                            color: term_color(ALL_COLORS[i / resolution]),
+                        });
+                    }
+                    ctx.print(
+                        x,
+                        y + if i % resolution == 0 {
+                            8.0 * y.signum()
+                        } else {
+                            0.0
+                        },
+                        format!("{}", i * resolution),
+                    );
+                }
+
+                for (idx, home) in self.homes.iter().enumerate() {
+                    let angle = (idx * 16) as f64 / 64.0 * TAU;
+                    for p in 1..=4 {
+                        let (x, y) = (
+                            angle.cos() * (CANVAS_SIZE - 32.0 * p as f64),
+                            angle.sin() * (CANVAS_SIZE - 32.0 * p as f64),
+                        );
+                        ctx.draw(&Rectangle {
+                            x,
+                            y,
+                            width: 0.01,
+                            height: 0.01,
+                            color: if home.is_free(p - 1) {
+                                Color::Rgb(255, 255, 255)
+                            } else {
+                                term_color(ALL_COLORS[idx])
+                            },
+                        });
+                    }
+                }
                 let dist = CANVAS_SIZE;
                 let idx_pos = [
                     (dist - CANVAS_PADDING, -dist),
@@ -136,7 +162,7 @@ impl BoardView {
                             y: start_y,
                             width: 0.1,
                             height: 0.1,
-                            color: tac_color_to_term_color(ALL_COLORS[idx]),
+                            color: term_color(ALL_COLORS[idx]),
                         });
                     }
                 }
@@ -146,7 +172,7 @@ impl BoardView {
     }
 }
 
-fn tac_color_to_term_color(tac_color: tac_types::Color) -> Color {
+fn term_color(tac_color: tac_types::Color) -> Color {
     match tac_color {
         tac_types::Color::Black => Color::Black,
         tac_types::Color::Blue => Color::Blue,

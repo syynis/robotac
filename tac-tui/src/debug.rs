@@ -1,6 +1,6 @@
 use ratatui::{
     crossterm::event::Event,
-    widgets::{Paragraph, Widget},
+    widgets::{Block, Paragraph, Widget},
 };
 use robotac::board::Board;
 
@@ -14,6 +14,6 @@ impl DebugView {
     }
 
     pub fn draw(&self, board: &Board) -> impl Widget + '_ {
-        Paragraph::new(format!("{:?}", board))
+        Paragraph::new(format!("{:?}", board)).block(Block::bordered().title("Debug state"))
     }
 }
