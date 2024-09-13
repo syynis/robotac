@@ -44,10 +44,16 @@ pub struct BoardView {
     focused_square: u8,
 }
 
+impl Default for BoardView {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BoardView {
     pub fn new() -> Self {
         let mut points = [BoardPoint::default(); 64];
-        for i in 0..64 {
+        (0..64).for_each(|i| {
             let angle = i as f64 / 64.0 * TAU;
             let (x, y) = (angle.cos() * CANVAS_SIZE, angle.sin() * CANVAS_SIZE);
             points[i] = BoardPoint {
@@ -55,7 +61,7 @@ impl BoardView {
                 y,
                 color: Color::Rgb(255, 255, 255),
             }
-        }
+        });
         Self {
             points,
             outside: [4; 4],
@@ -64,8 +70,8 @@ impl BoardView {
     }
 
     pub fn update(&mut self, event: &Event) -> Option<Message> {
-        match event {
-            Event::Key(key) => match key.code {
+        if let Event::Key(key) = event {
+            match key.code {
                 KeyCode::Right | KeyCode::Char('j') => {
                     self.focused_square = (self.focused_square + 63) % 64;
                 }
@@ -73,8 +79,7 @@ impl BoardView {
                     self.focused_square = (self.focused_square + 1) % 64;
                 }
                 _ => {}
-            },
-            _ => {}
+            }
         }
         None
     }

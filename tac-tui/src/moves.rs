@@ -20,8 +20,8 @@ impl MoveList {
         }
     }
     pub fn update(&mut self, event: &Event) -> Option<Message> {
-        match event {
-            Event::Key(key) => match key.code {
+        if let Event::Key(key) = event {
+            match key.code {
                 KeyCode::Right | KeyCode::Char('j') => {
                     self.selected = (self.selected + 1).min(self.moves.len() - 1);
                 }
@@ -33,8 +33,7 @@ impl MoveList {
                     return Some(Message::MakeMove(mv));
                 }
                 _ => {}
-            },
-            _ => {}
+            }
         }
         None
     }
@@ -50,8 +49,7 @@ impl MoveList {
             .moves
             .iter()
             .enumerate()
-            .map(|(idx, e)| format!("{}{}", if idx == self.selected { '>' } else { ' ' }, e))
-            .into_iter();
+            .map(|(idx, e)| format!("{}{}", if idx == self.selected { '>' } else { ' ' }, e));
         List::new(items).block(block).highlight_symbol(">")
     }
 }

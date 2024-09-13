@@ -12,6 +12,12 @@ pub struct SeedInput {
     input: String,
 }
 
+impl Default for SeedInput {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SeedInput {
     pub fn new() -> Self {
         Self {
@@ -20,10 +26,10 @@ impl SeedInput {
     }
 
     pub fn update(&mut self, event: &Event) -> Option<Message> {
-        match event {
-            Event::Key(key) => match key.code {
+        if let Event::Key(key) = event {
+            match key.code {
                 KeyCode::Char(c) => {
-                    if c.is_digit(10) {
+                    if c.is_ascii() {
                         self.input.push(c)
                     }
                 }
@@ -38,8 +44,7 @@ impl SeedInput {
                     )));
                 }
                 _ => {}
-            },
-            _ => {}
+            }
         }
         None
     }

@@ -32,6 +32,12 @@ pub struct App {
     previous_seed: u64,
 }
 
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl App {
     pub fn new() -> Self {
         let previous_seed = 0;
@@ -40,10 +46,10 @@ impl App {
         Self {
             board,
             mode: Mode::Moves,
-            board_view: BoardView::new(),
+            board_view: BoardView::default(),
             move_list,
             debug: DebugView,
-            seed_input: SeedInput::new(),
+            seed_input: SeedInput::default(),
             previous_seed,
         }
     }
