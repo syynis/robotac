@@ -289,6 +289,7 @@ impl Board {
 
             if self.hands.iter().all(|h| h.is_empty()) {
                 self.deal_new();
+                self.next_player();
             }
         }
     }
@@ -318,7 +319,7 @@ impl Board {
                     .map(TacMoveResult::Capture)
             }
             TacAction::SevenSteps { steps } => {
-                todo!();
+                return None;
                 steps
                     .iter()
                     .sorted_by_key(|s| match s {
@@ -389,7 +390,7 @@ impl Board {
                 }
             }
             TacAction::Trade => unreachable!("Can't undo trading"),
-            TacAction::SevenSteps { steps } => todo!(),
+            TacAction::SevenSteps { steps } => {}
         }
     }
 
@@ -483,11 +484,11 @@ impl std::fmt::Debug for Board {
         for ball in self.all_balls() {
             write!(f, "({}, {:?}), ", ball.0, self.color_on(ball).unwrap())?;
         }
-        write!(f, "\nhands: ")?;
+        write!(f, "\nhands:\n")?;
         for hand in &self.hands {
-            write!(f, "{:?}, ", hand.0)?;
+            writeln!(f, "{:?}, ", hand.0)?;
         }
-        write!(f, "\nhomes: ")?;
+        write!(f, "homes: ")?;
         for home in self.homes {
             write!(f, "{:#b}, ", home.0)?;
         }

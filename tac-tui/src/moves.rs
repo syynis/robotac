@@ -21,7 +21,7 @@ impl MoveList {
             selected: 0,
         }
     }
-    pub fn update(&mut self, event: &Event) -> io::Result<Message> {
+    pub fn update(&mut self, event: &Event) -> Option<Message> {
         match event {
             Event::Key(key) => match key.code {
                 KeyCode::Right | KeyCode::Char('j') => {
@@ -32,13 +32,13 @@ impl MoveList {
                 }
                 KeyCode::Enter => {
                     let mv = self.moves[self.selected].clone();
-                    return Ok(Message::MakeMove(mv));
+                    return Some(Message::MakeMove(mv));
                 }
                 _ => {}
             },
             _ => {}
         }
-        Ok(Message::Continue)
+        None
     }
     pub fn on_state_change(&mut self, board: &robotac::board::Board) {
         *self = MoveList::new(board);

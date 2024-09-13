@@ -4,6 +4,7 @@ use app::App;
 
 pub mod app;
 pub mod board;
+pub mod debug;
 pub mod moves;
 
 fn main() {

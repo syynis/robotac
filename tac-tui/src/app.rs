@@ -20,7 +20,7 @@ use ratatui::{
 use robotac::board::Board;
 use tac_types::{Square, TacMove};
 
-use crate::{board::BoardView, moves::MoveList};
+use crate::{board::BoardView, debug::DebugView, moves::MoveList};
 
 enum Mode {
     Board,
@@ -28,7 +28,6 @@ enum Mode {
 }
 
 pub enum Message {
-    Continue,
     Quit,
     MakeMove(TacMove),
 }
@@ -38,6 +37,7 @@ pub struct App {
     mode: Mode,
     board_view: BoardView,
     move_list: MoveList,
+    debug: DebugView,
 }
 
 impl App {
@@ -49,31 +49,38 @@ impl App {
             mode: Mode::Board,
             board_view: BoardView::new(),
             move_list,
+            debug: DebugView,
         }
+    }
+
+    pub fn new_board(&mut self, seed: u64) {
+        self.board = Board::new_with_seed(seed);
+        self.on_state_change();
     }
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> io::Result<()> {
         loop {
             terminal.draw(|frame| self.draw(frame))?;
-            match self.update()? {
-                Message::Continue => {}
-                Message::Quit => break,
-                Message::MakeMove(mv) => {
-                    self.board.play(mv);
-                    self.on_state_change();
+            if let Some(message) = self.update() {
+                match message {
+                    Message::Quit => break,
+                    Message::MakeMove(mv) => {
+                        self.board.play(mv);
+                        self.on_state_change();
+                    }
                 }
             }
         }
         Ok(())
     }
 
-    pub fn update(&mut self) -> io::Result<Message> {
-        if event::poll(Duration::from_millis(100))? {
-            let event = event::read()?;
+    pub fn update(&mut self) -> Option<Message> {
+        if event::poll(Duration::from_millis(100)).ok()? {
+            let event = event::read().ok()?;
             let mut pass_down = false;
             if let Event::Key(key_ev) = event {
                 match key_ev.code {
-                    KeyCode::Char('q') => return Ok(Message::Quit),
+                    KeyCode::Char('q') => return Some(Message::Quit),
                     KeyCode::Char('h') => self.mode = Mode::Board,
                     KeyCode::Char('l') => self.mode = Mode::Moves,
                     _ => {
@@ -88,8 +95,7 @@ impl App {
                 };
             }
         }
-
-        Ok(Message::Continue)
+        None
     }
 
     fn on_state_change(&mut self) {
@@ -100,10 +106,11 @@ impl App {
     fn draw(&self, frame: &mut Frame) {
         let horizontal =
             Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]);
-        let vertical = Layout::vertical([Constraint::Percentage(75), Constraint::Percentage(25)]);
+        let vertical = Layout::vertical([Constraint::Percentage(60), Constraint::Percentage(40)]);
         let [board, right] = horizontal.areas(frame.area());
-        let [moves, hand] = vertical.areas(right);
+        let [moves, debug] = vertical.areas(right);
         frame.render_widget(self.board_view.draw(), board);
         frame.render_widget(self.move_list.draw(), moves);
+        frame.render_widget(self.debug.draw(&self.board), debug);
     }
 }

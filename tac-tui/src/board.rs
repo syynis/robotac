@@ -13,6 +13,9 @@ use tac_types::{Square, ALL_COLORS};
 
 use crate::app::{App, Message};
 
+const CANVAS_SIZE: f64 = 256.0;
+const CANVAS_PADDING: f64 = 32.0;
+
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 struct BoardPoint {
     x: f64,
@@ -46,7 +49,7 @@ impl BoardView {
         let mut points = [BoardPoint::default(); 64];
         for i in (0..64) {
             let angle = i as f64 / 64.0 * TAU;
-            let (x, y) = (angle.cos() * 64.0, angle.sin() * 64.0);
+            let (x, y) = (angle.cos() * CANVAS_SIZE, angle.sin() * CANVAS_SIZE);
             points[i] = BoardPoint {
                 x,
                 y,
@@ -60,7 +63,7 @@ impl BoardView {
         }
     }
 
-    pub fn update(&mut self, event: &Event) -> io::Result<Message> {
+    pub fn update(&mut self, event: &Event) -> Option<Message> {
         match event {
             Event::Key(key) => match key.code {
                 KeyCode::Right | KeyCode::Char('j') => {
@@ -73,7 +76,7 @@ impl BoardView {
             },
             _ => {}
         }
-        Ok(Message::Continue)
+        None
     }
     pub fn on_state_change(&mut self, board: &robotac::board::Board) {
         for (idx, p) in self.points.iter_mut().enumerate() {
@@ -81,6 +84,8 @@ impl BoardView {
             let idx = idx as u8;
             if let Some(c) = board.color_on(Square(idx)) {
                 p.color = tac_color_to_term_color(c);
+            } else {
+                p.color = Color::Rgb(255, 255, 255);
             }
         }
         for (idx, c) in ALL_COLORS.iter().enumerate() {
@@ -90,17 +95,20 @@ impl BoardView {
 
     pub fn draw(&self) -> impl Widget + '_ {
         // diameter + padding
-        let size = 64.0 + 16.0;
+        let size = CANVAS_SIZE + CANVAS_PADDING;
         let bounds = [-size, size];
         Canvas::default()
             .block(Block::bordered().title("Board"))
-            .marker(Marker::HalfBlock)
+            .marker(Marker::Bar)
             .paint(move |ctx| {
                 ctx.draw(&ColoredPoints {
                     points: &self.points,
                 });
                 let angle = self.focused_square as f64 / 64.0 * TAU;
-                let (x, y) = (angle.cos() * 70.0, angle.sin() * 70.0);
+                let (x, y) = (
+                    angle.cos() * (CANVAS_SIZE + 16.0),
+                    angle.sin() * (CANVAS_SIZE + 16.0),
+                );
                 ctx.draw(&Rectangle {
                     x,
                     y,
@@ -108,13 +116,18 @@ impl BoardView {
                     height: 0.01,
                     color: Color::Yellow,
                 });
-                let dist = 64.0;
-                let idx_pos = [(dist, -dist), (dist, dist), (-dist, dist), (-dist, -dist)];
+                let dist = CANVAS_SIZE;
+                let idx_pos = [
+                    (dist - CANVAS_PADDING, -dist),
+                    (dist - CANVAS_PADDING, dist),
+                    (-dist, dist),
+                    (-dist, -dist),
+                ];
                 for (idx, amount) in self.outside.iter().enumerate() {
                     let (start_x, start_y) = idx_pos[idx];
                     for i in 0..*amount {
                         ctx.draw(&Rectangle {
-                            x: start_x + (i * 3) as f64,
+                            x: start_x + (i * CANVAS_PADDING as u8 / 2) as f64,
                             y: start_y,
                             width: 0.1,
                             height: 0.1,
