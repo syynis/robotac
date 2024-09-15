@@ -1,7 +1,7 @@
 use std::ops::{BitOr, BitXor};
 
 use itertools::Itertools;
-use rand::{rngs::StdRng, thread_rng, SeedableRng};
+use rand::{rngs::StdRng, SeedableRng};
 use tac_types::{
     BitBoard, Card, Color, Home, Square, TacAction, TacMove, TacMoveResult, ALL_COLORS,
 };
@@ -26,6 +26,8 @@ pub struct Board {
     hands: [Hand; 4],
     traded: [Option<Card>; 4],
     one_or_thirteen: [bool; 4],
+    pub move_count: u32,
+    seed: u64,
 }
 
 impl Default for Board {
@@ -36,29 +38,7 @@ impl Default for Board {
 
 impl Board {
     pub fn new() -> Self {
-        let mut rng = thread_rng();
-        const EMPTY: Vec<Card> = Vec::new();
-
-        let mut s = Self {
-            balls: [BitBoard::EMPTY; 4],
-            player_to_move: Color::Black,
-            homes: [Home::EMPTY; 4],
-            outsides: [4; 4],
-            fresh: [true; 4],
-            discard_flag: false,
-            jester_flag: false,
-            devil_flag: false,
-            trade_flag: false,
-            deck: Deck::new(&mut rng),
-            discarded: Vec::new(),
-            past_moves: Vec::new(),
-            hands: [EMPTY; 4].map(Hand::new),
-            traded: [None; 4],
-            one_or_thirteen: [false; 4],
-        };
-
-        s.deal_new();
-        s
+        Self::new_with_seed(0)
     }
     pub fn new_with_seed(seed: u64) -> Self {
         let mut rng = StdRng::seed_from_u64(seed);
@@ -80,6 +60,35 @@ impl Board {
             hands: [EMPTY; 4].map(Hand::new),
             traded: [None; 4],
             one_or_thirteen: [false; 4],
+            move_count: 0,
+            seed,
+        };
+
+        s.deal_new();
+        s
+    }
+    pub fn new_almost_done(seed: u64) -> Self {
+        let mut rng = StdRng::seed_from_u64(seed);
+        const EMPTY: Vec<Card> = Vec::new();
+
+        let mut s = Self {
+            balls: [BitBoard::EMPTY; 4],
+            player_to_move: Color::Black,
+            homes: [Home(0b1110); 4],
+            outsides: [1; 4],
+            fresh: [true; 4],
+            discard_flag: false,
+            jester_flag: false,
+            devil_flag: false,
+            trade_flag: false,
+            deck: Deck::new(&mut rng),
+            discarded: Vec::new(),
+            past_moves: Vec::new(),
+            hands: [EMPTY; 4].map(Hand::new),
+            traded: [None; 4],
+            one_or_thirteen: [false; 4],
+            move_count: 0,
+            seed,
         };
 
         s.deal_new();
@@ -91,6 +100,7 @@ impl Board {
         let capture = self.capture(color.home());
         self.xor(color.home(), color);
         // Don't need to check for underflow here
+        assert_ne!(self.outsides[color as usize], 0);
         self.outsides[color as usize] -= 1;
         capture
     }
@@ -162,11 +172,9 @@ impl Board {
 
     /// Returns a `BitBoard` representing every ball on the board.
     pub fn all_balls(&self) -> BitBoard {
-        let colors = [Color::Black, Color::Blue, Color::Green, Color::Red];
-
-        colors.iter().fold(BitBoard::EMPTY, |acc, color| {
-            acc | self.balls[(*color) as usize]
-        })
+        ALL_COLORS
+            .iter()
+            .fold(BitBoard::EMPTY, |acc, color| acc | self.balls_with(*color))
     }
 
     /// Returns a `BitBoard` representing the balls of a given player.
@@ -278,10 +286,9 @@ impl Board {
             };
             self.next_player();
         } else {
-            let captured = self.apply_action(mv.action.clone(), player);
-
             self.hands[player as usize].remove(mv.card);
             self.discarded.push(mv.card);
+            let captured = self.apply_action(mv.action.clone(), mv.played_for);
             if !self.jester_flag {
                 self.next_player();
             }
@@ -291,6 +298,13 @@ impl Board {
                 self.deal_new();
                 self.next_player();
             }
+        }
+        self.move_count += 1;
+        for c in ALL_COLORS {
+            assert_eq!(
+                self.balls_with(c).len() as u8 + self.home(c).amount() + self.num_outside(c),
+                4
+            );
         }
     }
 
@@ -306,7 +320,7 @@ impl Board {
             TacAction::Suspend => self.discard_flag = true,
             TacAction::Jester => {
                 self.jester_flag = true;
-                self.hands.rotate_right(1);
+                self.hands.rotate_left(1);
             }
             TacAction::Devil => self.devil_flag = true,
             TacAction::Warrior { from, to } => {
@@ -400,6 +414,7 @@ impl Board {
             .past_moves
             .pop() // Pop here so recursive tac works
             .expect("Undo only ever called with past_moves non-empty");
+        // TODO handle play for here
         let player = self.player_to_move.prev();
         self.undo_action(mv.action.clone(), player, captured.clone());
         if matches!(mv.card, Card::Tac) {
@@ -459,7 +474,7 @@ impl Board {
     /// Deal a new set of hands to each player
     pub fn deal_new(&mut self) {
         assert!(self.hands.iter().all(|h| h.is_empty()));
-        let mut rng = thread_rng();
+        let mut rng = StdRng::seed_from_u64(self.seed);
         let dealt_cards = self.deck.deal(&mut rng);
 
         for set in dealt_cards.chunks_exact(4) {
@@ -477,11 +492,23 @@ impl Board {
     pub fn can_play(&self, player: Color) -> bool {
         !self.balls_with(player).is_empty()
     }
+
+    pub fn play_for(&self, player: Color) -> Color {
+        if self.home(player).is_full() {
+            player.partner()
+        } else {
+            player
+        }
+    }
 }
 
 impl std::fmt::Debug for Board {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for ball in self.all_balls() {
+        write!(f, "{}", self.move_count)?;
+        for (idx, ball) in self.all_balls().iter().enumerate() {
+            if idx % 8 == 0 {
+                writeln!(f, "")?;
+            }
             write!(f, "({}, {:?}), ", ball.0, self.color_on(ball).unwrap())?;
         }
         write!(f, "\nhands:\n")?;

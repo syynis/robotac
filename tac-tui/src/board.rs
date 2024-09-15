@@ -92,6 +92,15 @@ impl BoardView {
         // diameter + padding
         let size = CANVAS_SIZE + CANVAS_PADDING;
         let bounds = [-size, size];
+        let make_rectangle = |x, y, color| -> Rectangle {
+            Rectangle {
+                x,
+                y,
+                width: 0.01,
+                height: 0.01,
+                color,
+            }
+        };
         Canvas::default()
             .block(Block::bordered().title("Board"))
             .marker(Marker::Bar)
@@ -108,13 +117,11 @@ impl BoardView {
                         angle.sin() * (CANVAS_SIZE + 16.0),
                     );
                     if i % resolution == 0 {
-                        ctx.draw(&Rectangle {
+                        ctx.draw(&make_rectangle(
                             x,
                             y,
-                            width: 0.01,
-                            height: 0.01,
-                            color: term_color(ALL_COLORS[i / resolution]),
-                        });
+                            term_color(ALL_COLORS[i / resolution]),
+                        ));
                     }
                     ctx.print(
                         x,
@@ -134,17 +141,15 @@ impl BoardView {
                             angle.cos() * (CANVAS_SIZE - 32.0 * p as f64),
                             angle.sin() * (CANVAS_SIZE - 32.0 * p as f64),
                         );
-                        ctx.draw(&Rectangle {
+                        ctx.draw(&make_rectangle(
                             x,
                             y,
-                            width: 0.01,
-                            height: 0.01,
-                            color: if home.is_free(p - 1) {
+                            if home.is_free(p - 1) {
                                 Color::Rgb(255, 255, 255)
                             } else {
                                 term_color(ALL_COLORS[idx])
                             },
-                        });
+                        ));
                     }
                 }
                 let dist = CANVAS_SIZE;
@@ -155,16 +160,14 @@ impl BoardView {
                     (-dist, -dist),
                 ];
                 for (idx, amount) in self.outside.iter().enumerate() {
-                    let (start_x, start_y) = idx_pos[idx];
-                    for i in 0..*amount {
-                        ctx.draw(&Rectangle {
-                            x: start_x + (i * CANVAS_PADDING as u8 / 2) as f64,
-                            y: start_y,
-                            width: 0.1,
-                            height: 0.1,
-                            color: term_color(ALL_COLORS[idx]),
-                        });
-                    }
+                    let (x, y) = idx_pos[idx];
+                    (0..*amount).for_each(|i| {
+                        ctx.draw(&make_rectangle(
+                            x + (i * CANVAS_PADDING as u8 / 2) as f64,
+                            y,
+                            term_color(ALL_COLORS[idx]),
+                        ));
+                    });
                 }
             })
             .x_bounds(bounds)

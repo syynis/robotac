@@ -4,7 +4,7 @@ use smallvec::SmallVec;
 
 use crate::{square::Square, Card, Color};
 
-#[derive(Debug, Clone, PartialEq, Hash)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TacAction {
     Step { from: Square, to: Square },
     // TODO HomeSquare type
@@ -22,21 +22,53 @@ pub enum TacAction {
     SevenSteps { steps: Vec<TacAction> },
 }
 
-#[derive(Debug, Clone, PartialEq, Hash)]
+impl Display for TacAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let _ = match self {
+            TacAction::Step { from, to } => write!(f, "Step {} {}", from.0, to.0),
+            TacAction::StepHome { from, to } => write!(f, "Home {} {}", from, to),
+            TacAction::StepInHome { from, to } => write!(f, "In home {} {}", from.0, to),
+            TacAction::Switch { target1, target2 } => {
+                write!(f, "Switch {} {}", target1.0, target2.0)
+            }
+            TacAction::Warrior { from, to } => write!(f, "Warrior {} {}", from.0, to.0),
+            TacAction::SevenSteps { steps } => {
+                for (idx, s) in steps.iter().enumerate() {
+                    if idx == steps.len() - 1 {
+                        write!(f, "{}", s);
+                    } else {
+                        write!(f, "{} | ", s);
+                    }
+                }
+                write!(f, "")
+            }
+            _ => write!(f, "{:?}", self),
+        };
+        Ok(())
+    }
+}
+
+// TODO this can probably fit into 32 bits if we are very clever
+#[derive(Debug, Clone, PartialEq)]
 pub struct TacMove {
     pub card: Card,
     pub action: TacAction,
+    pub played_for: Color,
 }
 
 impl Display for TacMove {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?} : {:?}", self.card, self.action)
+        writeln!(f, "{:?} {} {:?}", self.card, self.action, self.played_for)
     }
 }
 
 impl TacMove {
-    pub fn new(card: Card, action: TacAction) -> Self {
-        Self { card, action }
+    pub fn new(card: Card, action: TacAction, played_for: Color) -> Self {
+        Self {
+            card,
+            action,
+            played_for,
+        }
     }
 }
 

@@ -40,7 +40,8 @@ impl Default for App {
 impl App {
     pub fn new() -> Self {
         let previous_seed = 0;
-        let board = Board::new_with_seed(previous_seed);
+        // let board = Board::new_with_seed(previous_seed);
+        let board = Board::new_almost_done(previous_seed);
         let move_list = MoveList::new(&board);
         Self {
             board,

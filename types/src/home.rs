@@ -13,11 +13,11 @@ impl Home {
     }
 
     pub const fn free(self) -> u8 {
-        self.0.trailing_zeros() as u8
+        (self.0 | 0b10000).trailing_zeros() as u8
     }
 
     pub const fn is_free(self, pos: u8) -> bool {
-        self.0 & (1 << pos) == 0
+        (self.0 & (1 << pos)) == 0
     }
 
     pub const fn amount(self) -> u8 {

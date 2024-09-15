@@ -29,8 +29,9 @@ impl MoveList {
                     self.selected = self.selected.saturating_sub(1);
                 }
                 KeyCode::Enter => {
-                    let mv = self.moves[self.selected].clone();
-                    return Some(Message::MakeMove(mv));
+                    if let Some(mv) = self.moves.get(self.selected) {
+                        return Some(Message::MakeMove(mv.clone()));
+                    }
                 }
                 _ => {}
             }
