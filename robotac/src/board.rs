@@ -14,7 +14,7 @@ pub struct Board {
     balls: [BitBoard; 4],
     player_to_move: Color,
     homes: [Home; 4],
-    outsides: [u8; 4],
+    base: [u8; 4],
     fresh: [bool; 4],
     discard_flag: bool,
     jester_flag: bool,
@@ -48,7 +48,7 @@ impl Board {
             balls: [BitBoard::EMPTY; 4],
             player_to_move: Color::Black,
             homes: [Home::EMPTY; 4],
-            outsides: [4; 4],
+            base: [4; 4],
             fresh: [true; 4],
             discard_flag: false,
             jester_flag: false,
@@ -75,7 +75,7 @@ impl Board {
             balls: [BitBoard::EMPTY; 4],
             player_to_move: Color::Black,
             homes: [Home(0b1110); 4],
-            outsides: [1; 4],
+            base: [1; 4],
             fresh: [true; 4],
             discard_flag: false,
             jester_flag: false,
@@ -100,8 +100,8 @@ impl Board {
         let capture = self.capture(color.home());
         self.xor(color.home(), color);
         // Don't need to check for underflow here
-        assert_ne!(self.outsides[color as usize], 0);
-        self.outsides[color as usize] -= 1;
+        assert_ne!(self.base[color as usize], 0);
+        self.base[color as usize] -= 1;
         capture
     }
 
@@ -157,7 +157,7 @@ impl Board {
     pub fn capture(&mut self, target: Square) -> Option<Color> {
         let color = self.color_on(target)?;
         self.xor(target, color);
-        self.outsides[color as usize] += 1;
+        self.base[color as usize] += 1;
         Some(color)
     }
 
@@ -183,8 +183,8 @@ impl Board {
     }
 
     /// Returns the amount of balls from a given player not in play.
-    pub fn num_outside(&self, color: Color) -> u8 {
-        self.outsides[color as usize]
+    pub fn num_base(&self, color: Color) -> u8 {
+        self.base[color as usize]
     }
 
     /// Returns the `Home` of a given player.
@@ -302,7 +302,7 @@ impl Board {
         self.move_count += 1;
         for c in ALL_COLORS {
             assert_eq!(
-                self.balls_with(c).len() as u8 + self.home(c).amount() + self.num_outside(c),
+                self.balls_with(c).len() as u8 + self.home(c).amount() + self.num_base(c),
                 4
             );
         }
@@ -315,7 +315,7 @@ impl Board {
             }
             TacAction::StepHome { from, to } => self.move_ball_in_goal(from, to, player),
             TacAction::StepInHome { from, to } => self.move_ball_to_goal(from, to, player),
-            TacAction::Switch { target1, target2 } => self.swap_balls(target1, target2),
+            TacAction::Trickster { target1, target2 } => self.swap_balls(target1, target2),
             TacAction::Enter => return self.put_ball_in_play(player).map(TacMoveResult::Capture),
             TacAction::Suspend => self.discard_flag = true,
             TacAction::Jester => {
@@ -362,7 +362,7 @@ impl Board {
                 self.xor(from, player);
                 self.xor(to, player);
                 if let Some(TacMoveResult::Capture(captured)) = captured {
-                    self.outsides[captured as usize] -= 1;
+                    self.base[captured as usize] -= 1;
                     self.xor(to, captured);
                 }
             }
@@ -371,12 +371,12 @@ impl Board {
                 self.xor(from, player);
                 self.home(player).xor(to);
             }
-            TacAction::Switch { target1, target2 } => self.swap_balls(target1, target2),
+            TacAction::Trickster { target1, target2 } => self.swap_balls(target1, target2),
             TacAction::Enter => {
                 self.xor(player.home(), player);
-                self.outsides[player as usize] += 1;
+                self.base[player as usize] += 1;
                 if let Some(TacMoveResult::Capture(captured)) = captured {
-                    self.outsides[captured as usize] -= 1;
+                    self.base[captured as usize] -= 1;
                     self.xor(player.home(), captured);
                 }
             }
@@ -386,7 +386,7 @@ impl Board {
             TacAction::Warrior { from, to } => {
                 if let TacMoveResult::Capture(captured) = captured.expect("Warrior always captures")
                 {
-                    self.outsides[captured as usize] -= 1;
+                    self.base[captured as usize] -= 1;
                     if from != to {
                         self.xor(from, player);
                     }
@@ -397,9 +397,9 @@ impl Board {
             TacAction::AngelEnter => {
                 let next = player.next();
                 self.xor(next.home(), next);
-                self.outsides[next as usize] += 1;
+                self.base[next as usize] += 1;
                 if let Some(TacMoveResult::Capture(captured)) = captured {
-                    self.outsides[captured as usize] -= 1;
+                    self.base[captured as usize] -= 1;
                     self.xor(next.home(), captured);
                 }
             }
@@ -416,7 +416,7 @@ impl Board {
             .expect("Undo only ever called with past_moves non-empty");
         // TODO handle play for here
         let player = self.player_to_move.prev();
-        self.undo_action(mv.action.clone(), player, captured.clone());
+        self.undo_action(mv.action.clone(), mv.played_for, captured.clone());
         if matches!(mv.card, Card::Tac) {
             self.tac_undo_recursive(true, player);
         }
@@ -519,9 +519,9 @@ impl std::fmt::Debug for Board {
         for home in self.homes {
             write!(f, "{:#b}, ", home.0)?;
         }
-        write!(f, "\noutside: ")?;
-        for outside in self.outsides {
-            write!(f, "{}, ", outside)?;
+        write!(f, "\nbase: ")?;
+        for base in self.base {
+            write!(f, "{}, ", base)?;
         }
         write!(f, "\n1/13: ")?;
         for one_or_thirteen in self.one_or_thirteen {

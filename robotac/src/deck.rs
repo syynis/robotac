@@ -11,8 +11,8 @@ const DECK: [Card; DECK_SIZE] = {
         Seven, Seven, Seven, Seven, Seven, Eight, Eight, Eight, Eight, Eight, Eight, Eight, Nine,
         Nine, Nine, Nine, Nine, Nine, Nine, Ten, Ten, Ten, Ten, Ten, Ten, Ten, Twelve, Twelve,
         Twelve, Twelve, Twelve, Twelve, Twelve, Thirteen, Thirteen, Thirteen, Thirteen, Thirteen,
-        Thirteen, Thirteen, Thirteen, Thirteen, Juggler, Juggler, Juggler, Juggler, Juggler,
-        Juggler, Juggler, Devil, Angel, Jester, Warrior, Tac, Tac, Tac, Tac,
+        Thirteen, Thirteen, Thirteen, Thirteen, Trickster, Trickster, Trickster, Trickster,
+        Trickster, Trickster, Trickster, Devil, Angel, Jester, Warrior, Tac, Tac, Tac, Tac,
     ]
 };
 

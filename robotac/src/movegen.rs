@@ -48,8 +48,8 @@ impl Board {
 
         match card {
             Card::One | Card::Thirteen => {
-                // If we still have balls outside of play, we can put them on the board
-                if self.num_outside(play_for) > 0 {
+                // If we still have balls in base, we can put them on the board
+                if self.num_base(play_for) > 0 {
                     moves.push(TacMove::new(card, TacAction::Enter, play_for));
                 }
             }
@@ -67,9 +67,9 @@ impl Board {
                     moves.push(TacMove::new(card, TacAction::Suspend, player));
                 }
             }
-            Card::Juggler => {
+            Card::Trickster => {
                 if self.can_play(play_for) {
-                    moves.extend(self.switching_moves(play_for));
+                    moves.extend(self.trickster_moves(play_for));
                 }
             }
             Card::Jester => {
@@ -77,7 +77,7 @@ impl Board {
             }
             Card::Angel => {
                 // If player after us still has balls out of play
-                if self.num_outside(play_for_next) > 0 {
+                if self.num_base(play_for_next) > 0 {
                     moves.push(TacMove::new(card, TacAction::AngelEnter, play_for_next));
                 } else {
                     for ball in self.balls_with(play_for_next) {
@@ -282,7 +282,7 @@ impl Board {
         moves
     }
 
-    pub fn switching_moves(&self, play_for: Color) -> Vec<TacMove> {
+    pub fn trickster_moves(&self, play_for: Color) -> Vec<TacMove> {
         // At most n choose 2 -> n * (n-1) / 2
         // This only gets called if there are balls on the board so the length can never be 0
         let mut moves = Vec::with_capacity(
@@ -312,8 +312,8 @@ impl Board {
                     }
                 }
                 moves.push(TacMove::new(
-                    Card::Juggler,
-                    TacAction::Switch { target1, target2 },
+                    Card::Trickster,
+                    TacAction::Trickster { target1, target2 },
                     play_for,
                 ))
             }
@@ -624,7 +624,7 @@ mod tests {
         for color in ALL_COLORS {
             board.put_ball_in_play(color);
         }
-        let moves = board.switching_moves();
+        let moves = board.trickster_moves();
         assert_eq!(moves.len(), 6);
         board.move_ball(Square(0), Square(4), Color::Black);
         board.put_ball_in_play(Color::Black);
@@ -634,12 +634,12 @@ mod tests {
         // There are only 2 unique possibilities, either one ball is on home square (makes ball not fresh) or both are in ring.
         // So for each color we know the amount of moves we can prune is:
         // same_color_cnt * (same_color_cnt - 1) / 2 - 2
-        let moves = board.switching_moves();
+        let moves = board.trickster_moves();
         // 3 * 2 / 2 - 2 = 1
         assert_eq!(moves.len(), 15 - 1);
         board.move_ball(Square(0), Square(12), Color::Black);
         board.put_ball_in_play(Color::Black);
-        let moves = board.switching_moves();
+        let moves = board.trickster_moves();
         // 4 * 3 / 2 - 2 = 4
         assert_eq!(moves.len(), 21 - 4);
         for c in [Color::Blue, Color::Green, Color::Red] {
@@ -651,7 +651,7 @@ mod tests {
             board.put_ball_in_play(c);
         }
         assert_eq!(board.all_balls().len(), 16);
-        let moves = board.switching_moves();
+        let moves = board.trickster_moves();
         assert_eq!(moves.len(), (16 * 15 / 2) - 4 * (4 * 3 / 2 - 2));
     }
 

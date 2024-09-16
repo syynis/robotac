@@ -10,7 +10,7 @@ pub enum TacAction {
     // TODO HomeSquare type
     StepHome { from: u8, to: u8 },
     StepInHome { from: Square, to: u8 },
-    Switch { target1: Square, target2: Square },
+    Trickster { target1: Square, target2: Square },
     Enter,
     Suspend,
     Jester,
@@ -28,7 +28,7 @@ impl Display for TacAction {
             TacAction::Step { from, to } => write!(f, "Step {} {}", from.0, to.0),
             TacAction::StepHome { from, to } => write!(f, "Home {} {}", from, to),
             TacAction::StepInHome { from, to } => write!(f, "In home {} {}", from.0, to),
-            TacAction::Switch { target1, target2 } => {
+            TacAction::Trickster { target1, target2 } => {
                 write!(f, "Switch {} {}", target1.0, target2.0)
             }
             TacAction::Warrior { from, to } => write!(f, "Warrior {} {}", from.0, to.0),
