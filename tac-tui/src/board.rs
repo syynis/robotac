@@ -83,7 +83,7 @@ impl BoardView {
             }
         }
         for (idx, c) in ALL_COLORS.iter().enumerate() {
-            self.outside[idx] = board.num_outside(*c);
+            self.outside[idx] = board.num_base(*c);
             self.homes[idx] = board.home(*c);
         }
     }

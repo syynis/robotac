@@ -45,7 +45,7 @@ pub enum Card {
 }
 
 impl Card {
-    pub fn count(&self) -> u8 {
+    pub fn amount(&self) -> u8 {
         match self {
             Card::Seven => 8,
             Card::Jester | Card::Angel | Card::Devil | Card::Warrior => 1,
@@ -92,9 +92,5 @@ impl Card {
             Card::Thirteen => Some(13),
             _ => None,
         }
-    }
-
-    pub fn can_leave_house(&self) -> bool {
-        matches!(self, Card::One | Card::Thirteen)
     }
 }

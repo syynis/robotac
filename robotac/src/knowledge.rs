@@ -56,7 +56,7 @@ impl Knowledge {
     }
 
     pub fn possible(&self, card: Card) -> bool {
-        self.history[card] < card.count()
+        self.history[card] < card.amount()
     }
 
     pub fn reset(&mut self) {

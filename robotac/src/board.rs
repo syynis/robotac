@@ -500,6 +500,14 @@ impl Board {
             player
         }
     }
+    #[cfg(test)]
+    pub fn set_player(&mut self, player: Color) {
+        self.player_to_move = player;
+    }
+    #[cfg(test)]
+    pub fn add_hand(&mut self, player: Color, card: Card) {
+        self.hands[player as usize].0.push(card);
+    }
 }
 
 impl std::fmt::Debug for Board {

@@ -624,7 +624,7 @@ mod tests {
         for color in ALL_COLORS {
             board.put_ball_in_play(color);
         }
-        let moves = board.trickster_moves();
+        let moves = board.trickster_moves(Color::Black);
         assert_eq!(moves.len(), 6);
         board.move_ball(Square(0), Square(4), Color::Black);
         board.put_ball_in_play(Color::Black);
@@ -634,12 +634,12 @@ mod tests {
         // There are only 2 unique possibilities, either one ball is on home square (makes ball not fresh) or both are in ring.
         // So for each color we know the amount of moves we can prune is:
         // same_color_cnt * (same_color_cnt - 1) / 2 - 2
-        let moves = board.trickster_moves();
+        let moves = board.trickster_moves(Color::Black);
         // 3 * 2 / 2 - 2 = 1
         assert_eq!(moves.len(), 15 - 1);
         board.move_ball(Square(0), Square(12), Color::Black);
         board.put_ball_in_play(Color::Black);
-        let moves = board.trickster_moves();
+        let moves = board.trickster_moves(Color::Black);
         // 4 * 3 / 2 - 2 = 4
         assert_eq!(moves.len(), 21 - 4);
         for c in [Color::Blue, Color::Green, Color::Red] {
@@ -651,7 +651,7 @@ mod tests {
             board.put_ball_in_play(c);
         }
         assert_eq!(board.all_balls().len(), 16);
-        let moves = board.trickster_moves();
+        let moves = board.trickster_moves(Color::Black);
         assert_eq!(moves.len(), (16 * 15 / 2) - 4 * (4 * 3 / 2 - 2));
     }
 
@@ -668,7 +668,8 @@ mod tests {
                 TacAction::Step {
                     from: Square(0),
                     to: Square(60)
-                }
+                },
+                Color::Black,
             )
         );
         board.move_ball(Square(0), Square(4), Color::Black);
@@ -682,7 +683,8 @@ mod tests {
                 TacAction::Step {
                     from: Square(4),
                     to: Square(0)
-                }
+                },
+                Color::Black,
             )
         );
         board.put_ball_in_play(Color::Red);
@@ -713,10 +715,12 @@ mod tests {
                 TacAction::Step {
                     from: Color::Black.home(),
                     to: Color::Red.home()
-                }
-            )
+                },
+                Color::Black
+            ),
         );
-        board.play(moves[0].clone());
+        board.apply_action(moves[0].action.clone(), Color::Black);
+        board.set_player(Color::Black);
         let moves = board.moves_for_card(Color::Black, Card::Warrior);
         assert_eq!(moves.len(), 1);
         assert_eq!(
@@ -726,7 +730,8 @@ mod tests {
                 TacAction::Step {
                     from: Color::Red.home(),
                     to: Color::Red.home()
-                }
+                },
+                Color::Black
             )
         );
     }
@@ -734,7 +739,11 @@ mod tests {
     #[test]
     fn tac() {
         let mut board = Board::new();
-        let mv = TacMove::new(Card::One, TacAction::Enter);
+        ALL_COLORS
+            .iter()
+            .for_each(|c| board.add_hand(*c, Card::Tac));
+        board.add_hand(Color::Black, Card::One);
+        let mv = TacMove::new(Card::One, TacAction::Enter, Color::Black);
         board.play(mv);
         assert_eq!(board.color_on(Color::Black.home()).unwrap(), Color::Black);
         assert_eq!(board.current_player(), Color::Blue);
