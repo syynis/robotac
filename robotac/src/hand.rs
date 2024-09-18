@@ -1,15 +1,12 @@
 use smallvec::SmallVec;
 use tac_types::Card;
 
-// #[derive(Clone, Debug)]
-// pub struct Hand(pub SmallVec<Card, 6>);
 #[derive(Clone, Debug)]
-pub struct Hand(pub Vec<Card>);
+pub struct Hand(pub SmallVec<Card, 6>);
 
 impl Hand {
     pub fn new(cards: Vec<Card>) -> Self {
-        // Self(cards.into())
-        Self(cards)
+        Self(cards.into())
     }
 
     pub fn is_empty(&self) -> bool {

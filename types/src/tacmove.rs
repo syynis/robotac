@@ -24,25 +24,34 @@ pub enum TacAction {
 
 impl Display for TacAction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let _ = match self {
-            TacAction::Step { from, to } => write!(f, "Step {} {}", from.0, to.0),
-            TacAction::StepHome { from, to } => write!(f, "Home {} {}", from, to),
-            TacAction::StepInHome { from, to } => write!(f, "In home {} {}", from.0, to),
-            TacAction::Trickster { target1, target2 } => {
-                write!(f, "Switch {} {}", target1.0, target2.0)
+        match self {
+            TacAction::Step { from, to } => {
+                write!(f, "Step {} {}", from.0, to.0)?;
             }
-            TacAction::Warrior { from, to } => write!(f, "Warrior {} {}", from.0, to.0),
+            TacAction::StepHome { from, to } => {
+                write!(f, "Home {} {}", from, to)?;
+            }
+            TacAction::StepInHome { from, to } => {
+                write!(f, "In home {} {}", from.0, to)?;
+            }
+            TacAction::Trickster { target1, target2 } => {
+                write!(f, "Switch {} {}", target1.0, target2.0)?;
+            }
+            TacAction::Warrior { from, to } => {
+                write!(f, "Warrior {} {}", from.0, to.0)?;
+            }
             TacAction::SevenSteps { steps } => {
                 for (idx, s) in steps.iter().enumerate() {
                     if idx == steps.len() - 1 {
-                        write!(f, "{}", s);
+                        write!(f, "{}", s)?;
                     } else {
-                        write!(f, "{} | ", s);
+                        write!(f, "{} | ", s)?;
                     }
                 }
-                write!(f, "")
             }
-            _ => write!(f, "{:?}", self),
+            _ => {
+                write!(f, "{:?}", self)?;
+            }
         };
         Ok(())
     }
@@ -75,5 +84,5 @@ impl TacMove {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TacMoveResult {
     Capture(Color),
-    SevenCaptures(SmallVec<Color, 7>),
+    SevenCaptures(SmallVec<(Square, Color), 7>),
 }

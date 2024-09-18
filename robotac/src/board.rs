@@ -2,6 +2,7 @@ use std::ops::{BitOr, BitXor};
 
 use itertools::Itertools;
 use rand::{rngs::StdRng, SeedableRng};
+use smallvec::SmallVec;
 use tac_types::{
     BitBoard, Card, Color, Home, Square, TacAction, TacMove, TacMoveResult, ALL_COLORS,
 };
@@ -98,7 +99,7 @@ impl Board {
     /// Captures any ball that was on the starting position.
     pub fn put_ball_in_play(&mut self, color: Color) -> Option<Color> {
         let capture = self.capture(color.home());
-        self.xor(color.home(), color);
+        self.set(color.home(), color);
         // Don't need to check for underflow here
         assert_ne!(self.base[color as usize], 0);
         self.base[color as usize] -= 1;
@@ -110,14 +111,14 @@ impl Board {
     pub fn move_ball(&mut self, start: Square, end: Square, color: Color) -> Option<Color> {
         // Need to capture first in case color on start and end is the same
         let capture = self.capture(end);
-        self.xor(start, color);
-        self.xor(end, color);
+        self.unset(start, color);
+        self.set(end, color);
         capture
     }
 
     /// Move ball from `start` to `goal_pos`.
     pub fn move_ball_to_goal(&mut self, start: Square, goal_pos: u8, color: Color) {
-        self.xor(start, color);
+        self.unset(start, color);
         self.homes[color as usize].xor(goal_pos);
     }
 
@@ -132,15 +133,29 @@ impl Board {
         let c1 = self.color_on(sq1).expect("Square has ball");
         let c2 = self.color_on(sq2).expect("Square has ball");
 
-        self.xor(sq1, c1);
-        self.xor(sq1, c2);
-        self.xor(sq2, c1);
-        self.xor(sq2, c2);
+        self.unset(sq1, c1);
+        self.set(sq1, c2);
+        self.unset(sq2, c1);
+        self.set(sq2, c2);
     }
 
     /// Toggles the state of a square for a given player.
     pub(crate) fn xor(&mut self, square: Square, color: Color) {
         self.balls[color as usize] ^= square.bitboard();
+    }
+
+    /// Sets square to given color
+    /// This is a wrapper around xor with an assert that the square is empty
+    pub fn set(&mut self, square: Square, color: Color) {
+        assert!(self.color_on(square).is_none());
+        self.xor(square, color);
+    }
+
+    /// Removes color from square
+    /// This is a wrapper around xor with an assert that the square is occupied by the color
+    pub fn unset(&mut self, square: Square, color: Color) {
+        assert!(self.color_on(square) == Some(color));
+        self.xor(square, color);
     }
 
     /// Checks if there is a ball on `square` and returns it's color if there is any.
@@ -156,7 +171,7 @@ impl Board {
     /// Try to remove target ball and return its color if there was any.
     pub fn capture(&mut self, target: Square) -> Option<Color> {
         let color = self.color_on(target)?;
-        self.xor(target, color);
+        self.unset(target, color);
         self.base[color as usize] += 1;
         Some(color)
     }
@@ -333,18 +348,41 @@ impl Board {
                     .map(TacMoveResult::Capture)
             }
             TacAction::SevenSteps { steps } => {
-                return None;
-                steps
+                for s in steps.iter() {
+                    if let TacAction::StepHome { from, to } = s {
+                        self.move_ball_in_goal(*from, *to, player)
+                    };
+                }
+                let mut board_steps = steps
                     .iter()
-                    .sorted_by_key(|s| match s {
-                        TacAction::Step { from, to } => to.0,
-                        TacAction::StepHome { from, to } => 64 + from,
-                        TacAction::StepInHome { from, to } => {
-                            from.0 + from.distance_to_home(player)
+                    .filter_map(|s| {
+                        if let TacAction::Step { from, to } = s {
+                            Some((*from, *to))
+                        } else {
+                            None
                         }
-                        _ => unreachable!(""),
                     })
-                    .rev();
+                    .collect_vec();
+                let mut res = SmallVec::new();
+                let mut change = true;
+                while change {
+                    change = false;
+                    for (s, e) in board_steps.iter_mut() {
+                        if s == e {
+                            continue;
+                        }
+                        if let Some(cap) = self.move_ball(*s, s.add(1), player) {
+                            res.push((s.add(1), cap));
+                        }
+                        *s = s.add(1);
+                        change = true;
+                    }
+                }
+                if !res.is_empty() {
+                    return Some(TacMoveResult::SevenCaptures(res));
+                } else {
+                    return None;
+                }
             }
             TacAction::Trade => {}
         }
@@ -403,8 +441,35 @@ impl Board {
                     self.xor(next.home(), captured);
                 }
             }
+            TacAction::SevenSteps { steps } => {
+                // We have to do undoing for step and step home in two steps
+                // This is because different two steps could share the same square as
+                // their start or end square respectively
+                // TODO what about order of stephome / stepinhome
+                for s in steps.iter() {
+                    match s {
+                        TacAction::Step { from, to } => self.xor(*to, player),
+                        TacAction::StepHome { from, to } => self.home(player).xor(*to),
+                        TacAction::StepInHome { from, to } => self.home(player).xor(*to),
+                        _ => unreachable!(),
+                    }
+                }
+                for s in steps.iter() {
+                    match s {
+                        TacAction::Step { from, to } => self.xor(*from, player),
+                        TacAction::StepHome { from, to } => self.home(player).xor(*from),
+                        TacAction::StepInHome { from, to } => self.xor(*from, player),
+                        _ => unreachable!(),
+                    }
+                }
+                if let Some(TacMoveResult::SevenCaptures(captures)) = captured {
+                    for (square, color) in captures {
+                        self.base[color as usize] -= 1;
+                        self.xor(square, color);
+                    }
+                }
+            }
             TacAction::Trade => unreachable!("Can't undo trading"),
-            TacAction::SevenSteps { steps } => {}
         }
     }
 
@@ -515,7 +580,7 @@ impl std::fmt::Debug for Board {
         write!(f, "{}", self.move_count)?;
         for (idx, ball) in self.all_balls().iter().enumerate() {
             if idx % 8 == 0 {
-                writeln!(f, "")?;
+                writeln!(f)?;
             }
             write!(f, "({}, {:?}), ", ball.0, self.color_on(ball).unwrap())?;
         }
