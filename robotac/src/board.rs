@@ -107,7 +107,7 @@ impl Board {
         let capture = self.capture(color.home());
         self.set(color.home(), color);
         // Don't need to check for underflow here
-        assert_ne!(self.base[color as usize], 0);
+        debug_assert_ne!(self.base[color as usize], 0);
         self.base[color as usize] -= 1;
         capture
     }
@@ -125,13 +125,13 @@ impl Board {
     /// Move ball from `start` to `goal_pos`.
     pub fn move_ball_to_goal(&mut self, start: Square, goal_pos: u8, color: Color) {
         self.unset(start, color);
-        self.homes[color as usize].xor(goal_pos);
+        self.homes[color as usize].set(goal_pos);
     }
 
     /// Move ball that is in it's home from `start` to `end`.
     pub fn move_ball_in_goal(&mut self, start: u8, end: u8, color: Color) {
-        self.homes[color as usize].xor(start);
-        self.homes[color as usize].xor(end);
+        self.homes[color as usize].unset(start);
+        self.homes[color as usize].set(end);
     }
 
     /// Swaps the position of the balls on `sq1` and `sq2`.
@@ -153,14 +153,14 @@ impl Board {
     /// Sets square to given color
     /// This is a wrapper around xor with an assert that the square is empty
     pub fn set(&mut self, square: Square, color: Color) {
-        assert!(self.color_on(square).is_none());
+        debug_assert!(self.color_on(square).is_none());
         self.xor(square, color);
     }
 
     /// Removes color from square
     /// This is a wrapper around xor with an assert that the square is occupied by the color
     pub fn unset(&mut self, square: Square, color: Color) {
-        assert!(self.color_on(square) == Some(color));
+        debug_assert!(self.color_on(square) == Some(color));
         self.xor(square, color);
     }
 
@@ -326,7 +326,7 @@ impl Board {
         }
         self.move_count += 1;
         for c in ALL_COLORS {
-            assert_eq!(
+            debug_assert_eq!(
                 self.balls_with(c).len() as u8 + self.home(c).amount() + self.num_base(c),
                 4
             );
@@ -353,9 +353,7 @@ impl Board {
             }
             TacAction::Discard => self.discard_flag = false,
             TacAction::AngelEnter => {
-                return self
-                    .put_ball_in_play(player.next())
-                    .map(TacMoveResult::Capture)
+                return self.put_ball_in_play(player).map(TacMoveResult::Capture)
             }
             TacAction::SevenSteps { steps } => {
                 for s in steps.iter() {
@@ -407,25 +405,25 @@ impl Board {
     ) {
         match action {
             TacAction::Step { from, to } => {
-                self.xor(from, player);
-                self.xor(to, player);
+                self.set(from, player);
+                self.unset(to, player);
                 if let Some(TacMoveResult::Capture(captured)) = captured {
                     self.base[captured as usize] -= 1;
-                    self.xor(to, captured);
+                    self.set(to, captured);
                 }
             }
             TacAction::StepHome { from, to } => self.move_ball_in_goal(to, from, player),
             TacAction::StepInHome { from, to } => {
-                self.xor(from, player);
-                self.home(player).xor(to);
+                self.set(from, player);
+                self.home(player).unset(to);
             }
             TacAction::Trickster { target1, target2 } => self.swap_balls(target1, target2),
             TacAction::Enter => {
-                self.xor(player.home(), player);
+                self.unset(player.home(), player);
                 self.base[player as usize] += 1;
                 if let Some(TacMoveResult::Capture(captured)) = captured {
                     self.base[captured as usize] -= 1;
-                    self.xor(player.home(), captured);
+                    self.set(player.home(), captured);
                 }
             }
             TacAction::Suspend => self.discard_flag = false,
@@ -435,20 +433,24 @@ impl Board {
                 if let TacMoveResult::Capture(captured) = captured.expect("Warrior always captures")
                 {
                     self.base[captured as usize] -= 1;
-                    if from != to {
-                        self.xor(from, player);
+                    if from == to {
+                        debug_assert_eq!(player, captured);
+                        self.set(from, player);
+                    } else {
+                        self.unset(to, player);
+                        self.set(to, captured);
+                        self.set(from, player);
                     }
-                    self.xor(to, captured);
                 }
             }
             TacAction::Discard => {}
             TacAction::AngelEnter => {
                 let next = player.next();
-                self.xor(next.home(), next);
+                self.unset(next.home(), next);
                 self.base[next as usize] += 1;
                 if let Some(TacMoveResult::Capture(captured)) = captured {
                     self.base[captured as usize] -= 1;
-                    self.xor(next.home(), captured);
+                    self.set(next.home(), captured);
                 }
             }
             TacAction::SevenSteps { steps } => {
@@ -458,24 +460,24 @@ impl Board {
                 // TODO what about order of stephome / stepinhome
                 for s in steps.iter() {
                     match s {
-                        TacAction::Step { to, .. } => self.xor(*to, player),
-                        TacAction::StepHome { to, .. } => self.home(player).xor(*to),
-                        TacAction::StepInHome { to, .. } => self.home(player).xor(*to),
+                        TacAction::Step { to, .. } => self.unset(*to, player),
+                        TacAction::StepHome { to, .. } => self.home(player).unset(*to),
+                        TacAction::StepInHome { to, .. } => self.home(player).unset(*to),
                         _ => unreachable!(),
                     }
                 }
                 for s in steps.iter() {
                     match s {
-                        TacAction::Step { from, .. } => self.xor(*from, player),
-                        TacAction::StepHome { from, .. } => self.home(player).xor(*from),
-                        TacAction::StepInHome { from, .. } => self.xor(*from, player),
+                        TacAction::Step { from, .. } => self.set(*from, player),
+                        TacAction::StepHome { from, .. } => self.home(player).set(*from),
+                        TacAction::StepInHome { from, .. } => self.set(*from, player),
                         _ => unreachable!(),
                     }
                 }
                 if let Some(TacMoveResult::SevenCaptures(captures)) = captured {
                     for (square, color) in captures {
                         self.base[color as usize] -= 1;
-                        self.xor(square, color);
+                        self.set(square, color);
                     }
                 }
             }
@@ -555,7 +557,7 @@ impl Board {
 
     /// Deal a new set of hands to each player
     pub fn deal_new(&mut self) {
-        assert!(self.hands.iter().all(|h| h.is_empty()));
+        debug_assert!(self.hands.iter().all(|h| h.is_empty()));
         let mut rng = StdRng::seed_from_u64(self.seed);
         let dealt_cards = self.deck.deal(&mut rng);
 

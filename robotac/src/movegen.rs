@@ -322,7 +322,7 @@ impl Board {
     }
 
     pub fn warrior_target(&self, start: Square, player: Color) -> Square {
-        assert!(self.color_on(start).expect("Should work") == player);
+        debug_assert!(self.color_on(start).expect("Should work") == player);
         let others = self.all_balls() ^ start.bitboard();
         // Only ball on field
         if others.is_empty() {

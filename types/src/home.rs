@@ -8,8 +8,19 @@ impl Home {
     pub const fn is_empty(self) -> bool {
         self.0 == Self::EMPTY.0
     }
+
     pub fn xor(&mut self, pos: u8) {
         self.0 ^= 1 << pos;
+    }
+
+    pub fn set(&mut self, pos: u8) {
+        debug_assert!(self.is_free(pos));
+        self.xor(pos);
+    }
+
+    pub fn unset(&mut self, pos: u8) {
+        debug_assert!(!self.is_free(pos));
+        self.xor(pos);
     }
 
     pub const fn free(self) -> u8 {
