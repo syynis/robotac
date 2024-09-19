@@ -355,36 +355,59 @@ impl Board {
 
     fn get_home_moves_with_budget(&self, home: &Home, budget: u8) -> Vec<Vec<(u8, u8)>> {
         let mut moves = Vec::new();
-        let mut unlocked = home.get_all_unlocked();
+        let unlocked = home.get_all_unlocked();
         if budget == 0 || unlocked.is_empty() {
             return moves;
         }
-        unlocked.reverse();
         let num_unlocked = unlocked.len();
         let even_budget = budget % 2 == 0;
         // Try to spend budget
         match num_unlocked {
-            1 => {
-                let pos = unlocked[0];
-                if even_budget {
-                    if home.free_after(pos) && home.free_after(pos + 1) {
-                        moves.push(vec![(pos, pos + 2)]);
-                    }
-                    if home.free_behind(pos) && home.free_behind(pos - 1) {
-                        moves.push(vec![(pos, pos - 2)])
-                    }
-                } else {
-                    if budget > 2 && pos == 0 {
-                        moves.push(vec![(pos, pos + 3)])
-                    }
-                    if home.free_after(pos) {
-                        moves.push(vec![(pos, pos + 1)]);
-                    }
-                    if home.free_behind(pos) {
-                        moves.push(vec![(pos, pos - 1)])
+            1 => match home.0 {
+                0b0001 => {
+                    if even_budget {
+                        moves.push(vec![(0, 2)]);
+                    } else {
+                        moves.push(vec![(0, 1)]);
+                        moves.push(vec![(0, 3)]);
                     }
                 }
-            }
+                0b0010 => {
+                    if even_budget {
+                        moves.push(vec![(1, 3)]);
+                    } else {
+                        moves.push(vec![(1, 0)]);
+                        moves.push(vec![(1, 2)]);
+                    }
+                }
+                0b0100 => {
+                    if even_budget {
+                        moves.push(vec![(2, 0)]);
+                    } else {
+                        moves.push(vec![(2, 1)]);
+                        moves.push(vec![(2, 3)]);
+                    }
+                }
+                0b1001 => {
+                    if even_budget {
+                        moves.push(vec![(0, 2)]);
+                    } else {
+                        moves.push(vec![(0, 1)]);
+                    }
+                }
+                0b1010 => {
+                    if !even_budget {
+                        moves.push(vec![(1, 0)]);
+                        moves.push(vec![(1, 2)]);
+                    }
+                }
+                0b1101 => {
+                    if !even_budget {
+                        moves.push(vec![(0, 1)])
+                    }
+                }
+                _ => unreachable!(),
+            },
             2 => match home.0 {
                 0b0110 => {
                     if even_budget {
@@ -430,7 +453,7 @@ impl Board {
                         moves.push(vec![(1, 2)]);
                     }
                 }
-                _ => {}
+                _ => unreachable!(),
             },
             3 => {
                 if even_budget {

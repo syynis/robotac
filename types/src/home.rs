@@ -59,22 +59,6 @@ impl Home {
         }
         res
     }
-
-    pub fn free_after(&self, pos: u8) -> bool {
-        if pos > 2 {
-            false
-        } else {
-            self.is_free(pos + 1)
-        }
-    }
-
-    pub fn free_behind(&self, pos: u8) -> bool {
-        if pos == 0 || pos > 3 {
-            false
-        } else {
-            self.is_free(pos - 1)
-        }
-    }
 }
 
 #[cfg(test)]
