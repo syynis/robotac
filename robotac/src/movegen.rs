@@ -18,7 +18,7 @@ impl Board {
         // If we are forced to discard, either respond with tac or discard any card in hand
         if self.force_discard() {
             if hand.iter().any(|c| matches!(c, Card::Tac)) {
-                moves.extend(self.tac_moves(player));
+                moves.extend(self.tac_moves(self.play_for(player)));
             }
             for card in hand.iter().sorted().dedup() {
                 moves.push(TacMove::new(*card, TacAction::Discard, player));

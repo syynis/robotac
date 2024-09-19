@@ -135,8 +135,8 @@ impl Board {
 
         self.unset(sq1, c1);
         self.set(sq1, c2);
-        self.unset(sq2, c1);
-        self.set(sq2, c2);
+        self.unset(sq2, c2);
+        self.set(sq2, c1);
     }
 
     /// Toggles the state of a square for a given player.
@@ -311,6 +311,7 @@ impl Board {
 
             if self.hands.iter().all(|h| h.is_empty()) {
                 self.deal_new();
+                self.past_moves.clear();
                 self.next_player();
             }
         }
@@ -480,29 +481,36 @@ impl Board {
             .pop() // Pop here so recursive tac works
             .expect("Undo only ever called with past_moves non-empty");
         // TODO handle play for here
-        let player = self.player_to_move.prev();
         self.undo_action(mv.action.clone(), mv.played_for, captured.clone());
         if matches!(mv.card, Card::Tac) {
-            self.tac_undo_recursive(true, player);
+            self.tac_undo_recursive(
+                (!matches!(mv.action, TacAction::Discard)).then_some(true),
+                self.player_to_move.prev(),
+            );
         }
         // Push back when we are done
         self.past_moves.push((mv, captured));
     }
 
-    fn tac_undo_recursive(&mut self, redo: bool, player: Color) {
+    fn tac_undo_recursive(&mut self, redo: Option<bool>, player: Color) {
         let (mv, captured) = self
             .past_moves
             .pop() // Pop here so recursive tac works
             .expect("Undo only ever called with past_moves non-empty");
-        let player = player.prev();
-        if redo {
-            self.apply_action(mv.action.clone(), player);
-        } else {
-            self.undo_action(mv.action.clone(), player, captured.clone());
+        if let Some(redo) = redo {
+            if redo {
+                self.apply_action(mv.action.clone(), mv.played_for);
+            } else {
+                self.undo_action(mv.action.clone(), mv.played_for, captured.clone());
+            }
         }
 
         if matches!(mv.card, Card::Tac) {
-            self.tac_undo_recursive(!redo, player);
+            if let Some(redo) = redo {
+                self.tac_undo_recursive(Some(!redo), player.prev());
+            } else {
+                self.tac_undo_recursive(None, player.prev());
+            }
         }
         // Push back when we are done
         self.past_moves.push((mv, captured));

@@ -40,8 +40,8 @@ impl Default for App {
 impl App {
     pub fn new() -> Self {
         let previous_seed = 0;
-        // let board = Board::new_with_seed(previous_seed);
-        let board = Board::new_almost_done(previous_seed);
+        let board = Board::new_with_seed(previous_seed);
+        // let board = Board::new_almost_done(previous_seed);
         let move_list = MoveList::new(&board);
         Self {
             board,
@@ -115,7 +115,7 @@ impl App {
     fn draw(&self, frame: &mut Frame) {
         let horizontal =
             Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]);
-        let vertical = Layout::vertical([Constraint::Percentage(60), Constraint::Percentage(40)]);
+        let vertical = Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]);
         let [board, right] = horizontal.areas(frame.area());
         let [moves, debug] = vertical.areas(right);
         frame.render_widget(self.board_view.draw(), board);
