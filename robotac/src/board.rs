@@ -1,5 +1,6 @@
 use std::ops::{BitOr, BitXor};
 
+use arraydeque::{ArrayDeque, Wrapping};
 use itertools::Itertools;
 use rand::{rngs::StdRng, SeedableRng};
 use smallvec::SmallVec;
@@ -8,6 +9,11 @@ use tac_types::{
 };
 
 use crate::{deck::Deck, hand::Hand};
+
+// This is is choosen because the situation which needs the most lookup into past is:
+// Card - Jester - Tac - Tac - Tac - Tac - Tac
+// These are seven cards but we up it to eight so it's a power of two. The performance impact of this decision has not been measured
+const PAST_MOVES_LEN: usize = 8;
 
 #[derive(Clone)]
 pub struct Board {
@@ -23,7 +29,7 @@ pub struct Board {
     trade_flag: bool,
     deck: Deck,
     discarded: Vec<Card>,
-    past_moves: Vec<(TacMove, Option<TacMoveResult>)>,
+    past_moves: ArrayDeque<(TacMove, Option<TacMoveResult>), PAST_MOVES_LEN, Wrapping>,
     hands: [Hand; 4],
     traded: [Option<Card>; 4],
     one_or_thirteen: [bool; 4],
@@ -57,7 +63,7 @@ impl Board {
             trade_flag: false,
             deck: Deck::new(&mut rng),
             discarded: Vec::new(),
-            past_moves: Vec::new(),
+            past_moves: ArrayDeque::new(),
             hands: [EMPTY; 4].map(Hand::new),
             traded: [None; 4],
             one_or_thirteen: [false; 4],
@@ -84,7 +90,7 @@ impl Board {
             trade_flag: false,
             deck: Deck::new(&mut rng),
             discarded: Vec::new(),
-            past_moves: Vec::new(),
+            past_moves: ArrayDeque::new(),
             hands: [EMPTY; 4].map(Hand::new),
             traded: [None; 4],
             one_or_thirteen: [false; 4],
@@ -247,7 +253,9 @@ impl Board {
     }
 
     /// Returns past moves
-    pub fn past_moves(&self) -> &Vec<(TacMove, Option<TacMoveResult>)> {
+    pub fn past_moves(
+        &self,
+    ) -> &ArrayDeque<(TacMove, Option<TacMoveResult>), PAST_MOVES_LEN, Wrapping> {
         &self.past_moves
     }
 
@@ -307,7 +315,8 @@ impl Board {
             if !self.jester_flag {
                 self.next_player();
             }
-            self.past_moves.push((mv.clone(), captured));
+            self.past_moves.push_back((mv.clone(), captured));
+            // self.past_moves.push((mv.clone(), captured));
 
             if self.hands.iter().all(|h| h.is_empty()) {
                 self.deal_new();
@@ -449,17 +458,17 @@ impl Board {
                 // TODO what about order of stephome / stepinhome
                 for s in steps.iter() {
                     match s {
-                        TacAction::Step { from, to } => self.xor(*to, player),
-                        TacAction::StepHome { from, to } => self.home(player).xor(*to),
-                        TacAction::StepInHome { from, to } => self.home(player).xor(*to),
+                        TacAction::Step { to, .. } => self.xor(*to, player),
+                        TacAction::StepHome { to, .. } => self.home(player).xor(*to),
+                        TacAction::StepInHome { to, .. } => self.home(player).xor(*to),
                         _ => unreachable!(),
                     }
                 }
                 for s in steps.iter() {
                     match s {
-                        TacAction::Step { from, to } => self.xor(*from, player),
-                        TacAction::StepHome { from, to } => self.home(player).xor(*from),
-                        TacAction::StepInHome { from, to } => self.xor(*from, player),
+                        TacAction::Step { from, .. } => self.xor(*from, player),
+                        TacAction::StepHome { from, .. } => self.home(player).xor(*from),
+                        TacAction::StepInHome { from, .. } => self.xor(*from, player),
                         _ => unreachable!(),
                     }
                 }
@@ -478,7 +487,7 @@ impl Board {
     pub fn tac_undo(&mut self) {
         let (mv, captured) = self
             .past_moves
-            .pop() // Pop here so recursive tac works
+            .pop_back() // Pop here so recursive tac works
             .expect("Undo only ever called with past_moves non-empty");
         // TODO handle play for here
         self.undo_action(mv.action.clone(), mv.played_for, captured.clone());
@@ -489,13 +498,13 @@ impl Board {
             );
         }
         // Push back when we are done
-        self.past_moves.push((mv, captured));
+        self.past_moves.push_back((mv, captured));
     }
 
     fn tac_undo_recursive(&mut self, redo: Option<bool>, player: Color) {
         let (mv, captured) = self
             .past_moves
-            .pop() // Pop here so recursive tac works
+            .pop_back() // Pop here so recursive tac works
             .expect("Undo only ever called with past_moves non-empty");
         if let Some(redo) = redo {
             if redo {
@@ -513,7 +522,7 @@ impl Board {
             }
         }
         // Push back when we are done
-        self.past_moves.push((mv, captured));
+        self.past_moves.push_back((mv, captured));
     }
 
     /// Set card to be traded
@@ -615,6 +624,10 @@ impl std::fmt::Debug for Board {
         write!(f, "\nfresh: ")?;
         for fresh in self.fresh {
             write!(f, "{}, ", fresh)?;
+        }
+        write!(f, "\npast_moves:\n")?;
+        for (mv, captured) in self.past_moves.iter() {
+            writeln!(f, "{}, {:?}", mv, captured)?;
         }
         writeln!(f)?;
         writeln!(

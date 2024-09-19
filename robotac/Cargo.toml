@@ -10,5 +10,6 @@ enum-map = {workspace = true}
 rand = {workspace = true}
 itertools = {workspace = true}
 smallvec = {workspace = true}
+arraydeque = {workspace = true}
 
 [features]

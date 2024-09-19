@@ -336,7 +336,7 @@ impl Board {
     pub fn tac_moves(&self, player: Color) -> Vec<TacMove> {
         let mut moves = Vec::new();
 
-        if let Some((last_move, captured)) = self.past_moves().iter().rev().find(|&(c, _)| {
+        if let Some((last_move, _)) = self.past_moves().iter().rev().find(|&(c, _)| {
             !(matches!(c.card, Card::Tac) || (matches!(c.card, Card::Jester) && self.jester_flag()))
         }) {
             let mut state = self.clone();

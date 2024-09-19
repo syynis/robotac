@@ -115,7 +115,7 @@ impl App {
     fn draw(&self, frame: &mut Frame) {
         let horizontal =
             Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]);
-        let vertical = Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]);
+        let vertical = Layout::vertical([Constraint::Percentage(40), Constraint::Percentage(60)]);
         let [board, right] = horizontal.areas(frame.area());
         let [moves, debug] = vertical.areas(right);
         frame.render_widget(self.board_view.draw(), board);

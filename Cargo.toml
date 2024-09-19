@@ -18,6 +18,7 @@ crossbeam = {version = "0.8.4"}
 ratatui = "*"
 clap = "*"
 vek = "*"
+arraydeque = "*"
 
 [profile.dev]
 opt-level = 1
