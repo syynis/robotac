@@ -83,7 +83,7 @@ impl App {
     }
 
     pub fn update(&mut self) -> Option<Message> {
-        if event::poll(Duration::from_millis(100)).ok()? {
+        if event::poll(Duration::from_millis(10)).ok()? {
             let event = event::read().ok()?;
             let mut pass_down = false;
             if let Event::Key(key_ev) = event {

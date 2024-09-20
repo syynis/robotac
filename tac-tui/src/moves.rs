@@ -51,7 +51,14 @@ impl MoveList {
             .iter()
             .enumerate()
             .skip(self.selected.saturating_sub(8))
-            .map(|(idx, e)| format!("{}{}", if idx == self.selected { '>' } else { ' ' }, e));
+            .map(|(idx, e)| {
+                format!(
+                    "{}{} {}",
+                    if idx == self.selected { '>' } else { ' ' },
+                    idx,
+                    e
+                )
+            });
         List::new(items).block(block).highlight_symbol(">")
     }
 }
