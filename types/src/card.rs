@@ -45,6 +45,7 @@ pub enum Card {
 }
 
 impl Card {
+    #[must_use]
     pub fn amount(&self) -> u8 {
         match self {
             Card::Seven => 8,
@@ -55,6 +56,7 @@ impl Card {
         }
     }
 
+    #[must_use]
     pub fn name(&self) -> &str {
         match self {
             Card::One => "1",
@@ -78,6 +80,7 @@ impl Card {
         }
     }
 
+    #[must_use]
     pub fn is_simple(&self) -> Option<u8> {
         match self {
             Card::One => Some(1),

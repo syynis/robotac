@@ -7,6 +7,7 @@ impl Home {
     pub const EMPTY: Self = Self(0);
     const FULL: Self = Self(15);
 
+    #[must_use]
     pub const fn is_empty(self) -> bool {
         self.0 == Self::EMPTY.0
     }
@@ -25,26 +26,32 @@ impl Home {
         self.xor(pos);
     }
 
+    #[must_use]
     pub const fn free(self) -> u8 {
         (self.0 | 0b10000).trailing_zeros() as u8
     }
 
+    #[must_use]
     pub const fn is_free(self, pos: u8) -> bool {
         (self.0 & (1 << pos)) == 0
     }
 
+    #[must_use]
     pub const fn amount(self) -> u8 {
         self.0.count_ones() as u8
     }
 
+    #[must_use]
     pub const fn is_locked(self) -> bool {
         self.0 == 0b1000 || self.0 == 0b1100 || self.0 == 0b1110 || self.0 == 0b1111
     }
 
+    #[must_use]
     pub const fn is_full(self) -> bool {
         self.0 == Self::FULL.0
     }
 
+    #[must_use]
     pub const fn get_single_unlocked(self) -> Option<u8> {
         if !self.is_locked() && !self.is_empty() {
             return Some(self.free());
@@ -52,6 +59,7 @@ impl Home {
         None
     }
 
+    #[must_use]
     pub fn get_all_unlocked(self) -> Vec<u8> {
         let mut home = self;
         let mut res = Vec::new();

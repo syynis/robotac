@@ -29,7 +29,7 @@ impl Display for TacAction {
                 write!(f, "Step {} {}", from.0, to.0)?;
             }
             TacAction::StepHome { from, to } => {
-                write!(f, "Home {} {}", from, to)?;
+                write!(f, "Home {from} {to}")?;
             }
             TacAction::StepInHome { from, to } => {
                 write!(f, "In home {} {}", from.0, to)?;
@@ -43,14 +43,14 @@ impl Display for TacAction {
             TacAction::SevenSteps { steps } => {
                 for (idx, s) in steps.iter().enumerate() {
                     if idx == steps.len() - 1 {
-                        write!(f, "{}", s)?;
+                        write!(f, "{s}")?;
                     } else {
-                        write!(f, "{} | ", s)?;
+                        write!(f, "{s} | ")?;
                     }
                 }
             }
             _ => {
-                write!(f, "{:?}", self)?;
+                write!(f, "{self:?}")?;
             }
         };
         Ok(())
@@ -72,6 +72,7 @@ impl Display for TacMove {
 }
 
 impl TacMove {
+    #[must_use]
     pub fn new(card: Card, action: TacAction, played_for: Color) -> Self {
         Self {
             card,

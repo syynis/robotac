@@ -10,6 +10,7 @@ pub enum Color {
 }
 
 impl Color {
+    #[must_use]
     pub const fn next(self) -> Self {
         match self {
             Color::Black => Color::Blue,
@@ -18,6 +19,8 @@ impl Color {
             Color::Red => Color::Black,
         }
     }
+
+    #[must_use]
     pub const fn prev(self) -> Self {
         match self {
             Color::Black => Color::Red,
@@ -27,10 +30,12 @@ impl Color {
         }
     }
 
+    #[must_use]
     pub const fn partner(self) -> Self {
         self.next().next()
     }
 
+    #[must_use]
     pub const fn home(self) -> Square {
         match self {
             Color::Black => Square(0),
