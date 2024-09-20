@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use tac_types::{Card, Color, Home, Square, TacAction, TacMove};
+use tac_types::{Card, Color, Square, TacAction, TacMove};
 
 use crate::board::Board;
 
@@ -244,16 +244,15 @@ impl Board {
                 let free = self.home(color).free();
 
                 // We are right infront of goal and moved in some way after entering play before
-                if min_rev_dist == 1 && free == 4 && !self.fresh(color) {
+                if min_rev_dist == 65 && free == 4 && !self.fresh(color) {
                     moves.push(TacMove::new(
                         card,
                         TacAction::StepInHome { from: start, to: 4 },
                         color,
                     ));
                 } else if free > 0 // Goal needs to be free
-                    && min_rev_dist < 5 // At most 4 away from goal
-                    && min_rev_dist > 1 // Not standing on home
-                    && min_rev_dist + free > 3 // Enough space to move in
+                    && min_rev_dist + free > 4 // Enough space to move in
+                    && (2..=4).contains(&min_rev_dist) // In range to move in home
                     && (0..min_rev_dist - 1).all(|i| !self.occupied(color.home().add(i)))
                 {
                     let goal = 4 - min_rev_dist;
@@ -350,280 +349,6 @@ impl Board {
             );
         }
 
-        moves
-    }
-
-    fn get_home_moves_with_budget(&self, home: &Home, budget: u8) -> Vec<Vec<(u8, u8)>> {
-        let mut moves = Vec::new();
-        let unlocked = home.get_all_unlocked();
-        if budget == 0 || unlocked.is_empty() {
-            return moves;
-        }
-        let num_unlocked = unlocked.len();
-        let even_budget = budget % 2 == 0;
-        // Try to spend budget
-        match num_unlocked {
-            1 => match home.0 {
-                0b0001 => {
-                    if even_budget {
-                        moves.push(vec![(0, 2)]);
-                    } else {
-                        moves.push(vec![(0, 1)]);
-                        moves.push(vec![(0, 3)]);
-                    }
-                }
-                0b0010 => {
-                    if even_budget {
-                        moves.push(vec![(1, 3)]);
-                    } else {
-                        moves.push(vec![(1, 0)]);
-                        moves.push(vec![(1, 2)]);
-                    }
-                }
-                0b0100 => {
-                    if even_budget {
-                        moves.push(vec![(2, 0)]);
-                    } else {
-                        moves.push(vec![(2, 1)]);
-                        moves.push(vec![(2, 3)]);
-                    }
-                }
-                0b1001 => {
-                    if even_budget {
-                        moves.push(vec![(0, 2)]);
-                    } else {
-                        moves.push(vec![(0, 1)]);
-                    }
-                }
-                0b1010 => {
-                    if !even_budget {
-                        moves.push(vec![(1, 0)]);
-                        moves.push(vec![(1, 2)]);
-                    }
-                }
-                0b1101 => {
-                    if !even_budget {
-                        moves.push(vec![(0, 1)])
-                    }
-                }
-                _ => unreachable!(),
-            },
-            2 => match home.0 {
-                0b0110 => {
-                    if even_budget {
-                        moves.push(vec![(2, 3), (1, 2)]);
-                        moves.push(vec![(2, 3), (1, 0)]);
-                        moves.push(vec![(1, 0), (2, 1)]);
-                    } else {
-                        moves.push(vec![(2, 3)]);
-                        moves.push(vec![(1, 0)]);
-                    }
-                }
-                0b0101 => {
-                    if even_budget {
-                        moves.push(vec![(2, 3), (0, 1)])
-                    } else {
-                        moves.push(vec![(0, 1)]);
-                        moves.push(vec![(2, 3)]);
-                        moves.push(vec![(2, 1)]);
-                        if budget > 1 {
-                            moves.push(vec![(2, 3), (0, 2)]);
-                        }
-                    }
-                }
-                0b0011 => {
-                    if even_budget {
-                        moves.push(vec![(1, 3)]);
-                        moves.push(vec![(1, 2), (0, 1)]);
-                        if budget > 2 {
-                            moves.push(vec![(1, 3), (0, 2)]);
-                        }
-                    } else {
-                        moves.push(vec![(1, 2)]);
-
-                        if budget > 1 {
-                            moves.push(vec![(1, 3), (0, 1)]);
-                        }
-                    }
-                }
-                0b1011 => {
-                    if even_budget {
-                        moves.push(vec![(1, 2), (0, 1)]);
-                    } else {
-                        moves.push(vec![(1, 2)]);
-                    }
-                }
-                _ => unreachable!(),
-            },
-            3 => {
-                if even_budget {
-                    moves.push(vec![(2, 3), (1, 2)]);
-                } else {
-                    moves.push(vec![(2, 3)]);
-                    if budget > 2 {
-                        moves.push(vec![(2, 3), (1, 2), (0, 1)]);
-                    }
-                }
-            }
-            _ => unreachable!(),
-        }
-        moves
-    }
-
-    pub fn seven_moves(&self, player: Color) -> Vec<TacMove> {
-        // TODO Some thoughts about generating seven moves
-        // This still needs to take into account moves that go from ring to home
-        let mut moves = Vec::new();
-        let num_balls = self.balls_with(player).len();
-        let home = self.home(player);
-        let balls = self.balls_with(player).iter().collect_vec();
-        let max_home = if !home.is_locked() && !home.is_empty() {
-            8
-        } else {
-            1
-        };
-        let budget_start = if num_balls > 0 { 0 } else { 7 };
-        for home_budget in budget_start..max_home {
-            let home_moves = if home_budget != 0 {
-                self.get_home_moves_with_budget(&home, home_budget)
-                    .iter()
-                    .map(|hm| {
-                        hm.iter()
-                            .map(|&(from, to)| TacAction::StepHome { from, to })
-                            .collect_vec()
-                    })
-                    .collect_vec()
-            } else {
-                Vec::new()
-            };
-            let board_budget = 7 - home_budget;
-            if home_budget == 7 {
-                moves.extend(home_moves.iter().map(|steps| {
-                    TacMove::new(
-                        Card::Seven,
-                        TacAction::SevenSteps {
-                            steps: steps.to_vec(),
-                        },
-                        player,
-                    )
-                }));
-                break;
-            }
-            let mut steps = Vec::new();
-            match num_balls {
-                1 => {
-                    if board_budget != 0 {
-                        steps.push(vec![TacAction::Step {
-                            from: balls[0],
-                            to: balls[0].add(board_budget),
-                        }]);
-                    }
-                }
-                2 => {
-                    for i in 0..board_budget + 1 {
-                        let j = board_budget - i;
-                        let mut step = Vec::new();
-
-                        if i != 0 {
-                            step.push(TacAction::Step {
-                                from: balls[0],
-                                to: balls[0].add(i),
-                            })
-                        }
-                        if j != 0 {
-                            step.push(TacAction::Step {
-                                from: balls[1],
-                                to: balls[1].add(j),
-                            })
-                        }
-                        steps.push(step);
-                    }
-                }
-                3 => {
-                    for i in 0..board_budget + 1 {
-                        for j in 0..board_budget + 1 - i {
-                            let k = board_budget - i - j;
-                            let mut step = Vec::new();
-                            if i != 0 {
-                                step.push(TacAction::Step {
-                                    from: balls[0],
-                                    to: balls[0].add(i),
-                                })
-                            }
-                            if j != 0 {
-                                step.push(TacAction::Step {
-                                    from: balls[1],
-                                    to: balls[1].add(j),
-                                })
-                            }
-                            if k != 0 {
-                                step.push(TacAction::Step {
-                                    from: balls[2],
-                                    to: balls[2].add(k),
-                                })
-                            }
-                            steps.push(step);
-                        }
-                    }
-                }
-                4 => {
-                    for i in 0..board_budget + 1 {
-                        for j in 0..board_budget + 1 - i {
-                            for k in 0..board_budget + 1 - i - j {
-                                let l = board_budget - i - j - k;
-                                let mut step = Vec::new();
-                                if i != 0 {
-                                    step.push(TacAction::Step {
-                                        from: balls[0],
-                                        to: balls[0].add(i),
-                                    })
-                                }
-                                if j != 0 {
-                                    step.push(TacAction::Step {
-                                        from: balls[1],
-                                        to: balls[1].add(j),
-                                    })
-                                }
-                                if k != 0 {
-                                    step.push(TacAction::Step {
-                                        from: balls[2],
-                                        to: balls[2].add(k),
-                                    })
-                                }
-                                if l != 0 {
-                                    step.push(TacAction::Step {
-                                        from: balls[3],
-                                        to: balls[3].add(l),
-                                    })
-                                }
-                                steps.push(step);
-                            }
-                        }
-                    }
-                }
-                _ => unreachable!(),
-            }
-            for step in steps {
-                if home_moves.is_empty() {
-                    moves.push(TacMove::new(
-                        Card::Seven,
-                        TacAction::SevenSteps {
-                            steps: step.clone(),
-                        },
-                        player,
-                    ));
-                }
-                for home_move in home_moves.clone() {
-                    moves.push(TacMove::new(
-                        Card::Seven,
-                        TacAction::SevenSteps {
-                            steps: [home_move, step.clone()].concat(),
-                        },
-                        player,
-                    ));
-                }
-            }
-        }
         moves
     }
 }
@@ -731,17 +456,43 @@ mod tests {
                 Color::Black,
             )
         );
-        board.put_ball_in_play(Color::Red);
-        assert_eq!(board.color_on(Square(48)), Some(Color::Red));
-        board.move_ball(Square(48), Square(3), Color::Red);
-        let moves = board.moves_for_card_square(Square(4), Color::Black, Card::Four);
-        assert_eq!(moves.len(), 0);
-        board.move_ball(Square(3), Square(5), Color::Red);
-        let moves = board.moves_for_card_square(Square(4), Color::Black, Card::Four);
-        assert_eq!(moves.len(), 1);
-        board.move_ball(Square(4), Square(3), Color::Black);
-        let moves = board.moves_for_card_square(Square(3), Color::Black, Card::Four);
-        assert_eq!(moves.len(), 2);
+    }
+
+    #[test]
+    fn four_in_goal() {
+        let mut board = Board::new();
+        let black = Color::Black;
+        board.put_ball_in_play(black);
+        board.move_ball(Square(0), Square(1), black);
+        board.apply_action(
+            board.moves_for_card_square(Square(1), black, Card::Four)[1]
+                .action
+                .clone(),
+            black,
+        );
+        assert!(board.home(black).is_free(0));
+        assert!(board.home(black).is_free(1));
+        assert!(!board.home(black).is_free(2));
+        assert!(board.home(black).is_free(3));
+        board.put_ball_in_play(black);
+        board.move_ball(Square(0), Square(1), black);
+        assert_eq!(
+            board
+                .moves_for_card_square(Square(1), black, Card::Four)
+                .len(),
+            1
+        );
+        board.move_ball(Square(1), Square(3), black);
+        board.apply_action(
+            board.moves_for_card_square(Square(3), black, Card::Four)[1]
+                .action
+                .clone(),
+            black,
+        );
+        assert!(!board.home(black).is_free(0));
+        assert!(board.home(black).is_free(1));
+        assert!(!board.home(black).is_free(2));
+        assert!(board.home(black).is_free(3));
     }
 
     #[test]

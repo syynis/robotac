@@ -8,6 +8,7 @@ pub mod eval;
 pub mod hand;
 pub mod knowledge;
 pub mod movegen;
+pub mod seven;
 
 struct TacAI;
 struct TacEval;
