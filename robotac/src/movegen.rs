@@ -4,6 +4,7 @@ use tac_types::{Card, Color, Square, TacAction, TacMove};
 use crate::board::Board;
 
 impl Board {
+    #[must_use]
     pub fn get_moves(&self, player: Color) -> Vec<TacMove> {
         let mut moves = Vec::new();
         let hand = self.hand(player);
@@ -41,6 +42,8 @@ impl Board {
         moves
     }
 
+    #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn moves_for_card(&self, player: Color, card: Card) -> Vec<TacMove> {
         let play_for = self.play_for(player);
         let play_for_next = self.play_for(player.next());
@@ -150,7 +153,7 @@ impl Board {
                     _ => {}
                 },
                 Card::Two => match home.0 {
-                    0b0001 => {
+                    0b0001 | 0b1001 => {
                         moves.push(TacMove::new(
                             card,
                             TacAction::StepHome { from: 0, to: 2 },
@@ -161,13 +164,6 @@ impl Board {
                         moves.push(TacMove::new(
                             card,
                             TacAction::StepHome { from: 1, to: 3 },
-                            play_for,
-                        ));
-                    }
-                    0b1001 => {
-                        moves.push(TacMove::new(
-                            card,
-                            TacAction::StepHome { from: 0, to: 2 },
                             play_for,
                         ));
                     }
@@ -188,13 +184,14 @@ impl Board {
 
         // Moves we can only do with balls on the board
         if self.can_play(play_for) {
-            for ball in self.balls_with(play_for).iter() {
+            for ball in self.balls_with(play_for) {
                 moves.extend(self.moves_for_card_square(ball, play_for, card));
             }
         }
         moves
     }
 
+    #[must_use]
     pub fn moves_for_card_square(&self, start: Square, color: Color, card: Card) -> Vec<TacMove> {
         let mut moves = Vec::new();
 
@@ -220,7 +217,7 @@ impl Board {
                             to: goal_pos,
                         },
                         color,
-                    ))
+                    ));
                 }
             }
         }
@@ -281,18 +278,23 @@ impl Board {
         moves
     }
 
+    #[must_use]
+    #[allow(clippy::missing_panics_doc)]
     pub fn trickster_moves(&self, play_for: Color) -> Vec<TacMove> {
         // At most n choose 2 -> n * (n-1) / 2
         // This only gets called if there are balls on the board so the length can never be 0
-        let mut moves = Vec::with_capacity(
-            (self.all_balls().len() * (self.all_balls().len() - 1)) as usize / 2,
-        );
+        let mut moves =
+            Vec::with_capacity((self.all_balls().len() * (self.all_balls().len() - 1)) / 2);
         let mut same_switch = [false; 4];
         let mut home_switch = [false; 4];
         for (idx, target1) in self.all_balls().iter().enumerate() {
-            let c1 = self.color_on(target1).unwrap();
+            let c1 = self
+                .color_on(target1)
+                .expect("Square value from all_balls means it's occupied");
             for target2 in self.all_balls().iter().skip(idx + 1) {
-                let c2 = self.color_on(target2).unwrap();
+                let c2 = self
+                    .color_on(target2)
+                    .expect("Square value from all_balls means it's occupied");
                 // Check if we can prune this move in case we already have one
                 // that results in the same game state
                 if c1 == c2 {
@@ -300,9 +302,8 @@ impl Board {
                         if home_switch[c1 as usize] {
                             // Already have one switching moves with same color on home square
                             continue;
-                        } else {
-                            home_switch[c1 as usize] = true;
                         }
+                        home_switch[c1 as usize] = true;
                     } else if same_switch[c1 as usize] {
                         // Already have one switching moves with same color
                         continue;
@@ -314,12 +315,15 @@ impl Board {
                     Card::Trickster,
                     TacAction::Trickster { target1, target2 },
                     play_for,
-                ))
+                ));
             }
         }
         moves
     }
 
+    #[must_use]
+    /// # Panics
+    /// If the given square is not occupied by the given color
     pub fn warrior_target(&self, start: Square, player: Color) -> Square {
         debug_assert!(self.color_on(start).expect("Should work") == player);
         let others = self.all_balls() ^ start.bitboard();
@@ -332,6 +336,7 @@ impl Board {
         others.rotate_right(start.0).next_square().add(start.0)
     }
 
+    #[must_use]
     pub fn tac_moves(&self, player: Color) -> Vec<TacMove> {
         let mut moves = Vec::new();
 

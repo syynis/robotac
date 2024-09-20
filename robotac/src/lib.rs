@@ -1,3 +1,9 @@
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::missing_panics_doc,
+    clippy::similar_names,
+    clippy::struct_excessive_bools
+)]
 use board::Board;
 use mcts::{policies::UCTPolicy, Evaluator, GameState, MCTS};
 use tac_types::{Color, TacMove};
@@ -70,10 +76,10 @@ impl GameState for Board {
     }
 
     fn make_move(&mut self, mv: &Self::Move) {
-        self.play(mv.clone())
+        self.play(mv);
     }
 
-    fn randomize_determination(&mut self, observer: Self::Player) {
+    fn randomize_determination(&mut self, _observer: Self::Player) {
         todo!()
     }
 }

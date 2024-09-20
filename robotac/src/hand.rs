@@ -5,10 +5,12 @@ use tac_types::Card;
 pub struct Hand(pub SmallVec<Card, 6>);
 
 impl Hand {
+    #[must_use]
     pub fn new(cards: Vec<Card>) -> Self {
         Self(cards.into())
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -17,6 +19,8 @@ impl Hand {
         self.0.push(card);
     }
 
+    /// # Panics
+    /// If card is not in hand
     pub fn remove(&mut self, card: Card) {
         self.0.remove(
             self.0

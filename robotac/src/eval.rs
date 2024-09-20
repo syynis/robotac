@@ -2,7 +2,10 @@ use tac_types::{BitBoard, Color, Square};
 
 use crate::board::Board;
 
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_lossless)]
 impl Board {
+    #[must_use]
     pub fn eval(&self) -> i64 {
         // Absolute most basic eval for now. Just count the number of balls we have in home
         if self.won(self.current_player()) {
@@ -12,6 +15,7 @@ impl Board {
             + self.home(self.current_player().partner()).amount() as i64
     }
 
+    #[must_use]
     pub fn eval2(&self) -> i64 {
         let mut eval = 0;
         let p = self.current_player();
@@ -102,6 +106,8 @@ impl Board {
             |start: Square, player: Color| -> bool { start.distance_to_home(player) > 60 };
 
         let count = |bb: BitBoard, color: Color| -> (u8, u8, u8) {
+            // Cast is valid in all cases because iterating bitboard
+            // can return square with value at most 64
             (
                 bb.iter()
                     .filter(|ball| in_fwd_proximity(*ball, color))

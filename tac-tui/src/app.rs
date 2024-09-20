@@ -66,7 +66,7 @@ impl App {
                 match message {
                     Message::Quit => break,
                     Message::MakeMove(mv) => {
-                        self.board.play(mv);
+                        self.board.play(&mv);
                         self.on_state_change();
                     }
                     Message::Reset(seed) => {

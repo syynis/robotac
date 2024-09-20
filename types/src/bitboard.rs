@@ -15,8 +15,8 @@ impl BitBoard {
         self.0 == Self::EMPTY.0
     }
 
-    pub const fn len(self) -> u32 {
-        self.0.count_ones()
+    pub const fn len(self) -> usize {
+        self.0.count_ones() as usize
     }
 
     pub const fn has(self, square: Square) -> bool {
@@ -94,7 +94,7 @@ impl IntoIterator for BitBoard {
 
 impl ExactSizeIterator for BitBoardIter {
     fn len(&self) -> usize {
-        self.0.len() as usize
+        self.0.len()
     }
 }
 

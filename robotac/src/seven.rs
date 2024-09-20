@@ -31,6 +31,7 @@ fn moves_for_budget(
 }
 
 impl Board {
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn seven_moves(&self, player: Color) -> Vec<TacMove> {
         // TODO Some thoughts about generating seven moves
         // This still needs to take into account moves that go from ring to home
@@ -45,7 +46,7 @@ impl Board {
         for home_budget in budget_start..max_home {
             // Get all possiblities of moving balls in home with the given budget
             let home_moves = if home_budget != 0 {
-                get_home_moves_with_budget(&home, home_budget)
+                get_home_moves_with_budget(home, home_budget)
                     .iter()
                     .map(|hm| {
                         hm.iter()
@@ -63,7 +64,7 @@ impl Board {
                     TacMove::new(
                         Card::Seven,
                         TacAction::SevenSteps {
-                            steps: steps.to_vec(),
+                            steps: steps.clone(),
                         },
                         player,
                     )
@@ -107,7 +108,7 @@ impl Board {
                             for wasted in 0..to_waste {
                                 let budget = board_budget - wasted;
                                 let wasted_even = wasted % 2 == 0;
-                                let goal = if wasted_even { 1 } else { 0 };
+                                let goal = u8::from(wasted_even);
                                 // Impossible
                                 if goal + 1 > budget {
                                     continue;
@@ -149,7 +150,7 @@ impl Board {
                     }
                 }
                 2 => {
-                    for i in 0..board_budget + 1 {
+                    for i in 0..=board_budget {
                         let j = board_budget - i;
                         let mut step = Vec::new();
 
@@ -157,73 +158,73 @@ impl Board {
                             step.push(TacAction::Step {
                                 from: balls[0],
                                 to: balls[0].add(i),
-                            })
+                            });
                         }
                         if j != 0 {
                             step.push(TacAction::Step {
                                 from: balls[1],
                                 to: balls[1].add(j),
-                            })
+                            });
                         }
                         steps.push(step);
                     }
                 }
                 3 => {
-                    for i in 0..board_budget + 1 {
-                        for j in 0..board_budget + 1 - i {
+                    for i in 0..=board_budget {
+                        for j in 0..=board_budget - i {
                             let k = board_budget - i - j;
                             let mut step = Vec::new();
                             if i != 0 {
                                 step.push(TacAction::Step {
                                     from: balls[0],
                                     to: balls[0].add(i),
-                                })
+                                });
                             }
                             if j != 0 {
                                 step.push(TacAction::Step {
                                     from: balls[1],
                                     to: balls[1].add(j),
-                                })
+                                });
                             }
                             if k != 0 {
                                 step.push(TacAction::Step {
                                     from: balls[2],
                                     to: balls[2].add(k),
-                                })
+                                });
                             }
                             steps.push(step);
                         }
                     }
                 }
                 4 => {
-                    for i in 0..board_budget + 1 {
-                        for j in 0..board_budget + 1 - i {
-                            for k in 0..board_budget + 1 - i - j {
+                    for i in 0..=board_budget {
+                        for j in 0..=board_budget - i {
+                            for k in 0..=board_budget - i - j {
                                 let l = board_budget - i - j - k;
                                 let mut step = Vec::new();
                                 if i != 0 {
                                     step.push(TacAction::Step {
                                         from: balls[0],
                                         to: balls[0].add(i),
-                                    })
+                                    });
                                 }
                                 if j != 0 {
                                     step.push(TacAction::Step {
                                         from: balls[1],
                                         to: balls[1].add(j),
-                                    })
+                                    });
                                 }
                                 if k != 0 {
                                     step.push(TacAction::Step {
                                         from: balls[2],
                                         to: balls[2].add(k),
-                                    })
+                                    });
                                 }
                                 if l != 0 {
                                     step.push(TacAction::Step {
                                         from: balls[3],
                                         to: balls[3].add(l),
-                                    })
+                                    });
                                 }
                                 steps.push(step);
                             }
@@ -257,7 +258,8 @@ impl Board {
     }
 }
 
-fn get_home_moves_with_budget(home: &Home, budget: u8) -> Vec<Vec<(u8, u8)>> {
+#[allow(clippy::too_many_lines)]
+fn get_home_moves_with_budget(home: Home, budget: u8) -> Vec<Vec<(u8, u8)>> {
     let mut moves = Vec::new();
     let unlocked = home.get_all_unlocked();
     if budget == 0 || unlocked.is_empty() {
@@ -307,7 +309,7 @@ fn get_home_moves_with_budget(home: &Home, budget: u8) -> Vec<Vec<(u8, u8)>> {
             }
             0b1101 => {
                 if !even_budget {
-                    moves.push(vec![(0, 1)])
+                    moves.push(vec![(0, 1)]);
                 }
             }
             _ => unreachable!(),
@@ -325,7 +327,7 @@ fn get_home_moves_with_budget(home: &Home, budget: u8) -> Vec<Vec<(u8, u8)>> {
             }
             0b0101 => {
                 if even_budget {
-                    moves.push(vec![(2, 3), (0, 1)])
+                    moves.push(vec![(2, 3), (0, 1)]);
                 } else {
                     moves.push(vec![(0, 1)]);
                     moves.push(vec![(2, 3)]);
