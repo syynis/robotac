@@ -1,10 +1,11 @@
 use std::fmt::Display;
 
+use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::{square::Square, Card, Color};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TacAction {
     Step { from: Square, to: Square },
     // TODO HomeSquare type
@@ -58,7 +59,7 @@ impl Display for TacAction {
 }
 
 // TODO this can probably fit into 32 bits if we are very clever
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TacMove {
     pub card: Card,
     pub action: TacAction,

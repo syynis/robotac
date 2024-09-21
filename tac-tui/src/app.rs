@@ -1,33 +1,61 @@
-use std::{io, time::Duration};
+use std::{
+    fs::File,
+    io::{self, Write},
+    time::Duration,
+};
 
 use ratatui::{
     crossterm::event::{self, Event, KeyCode},
     layout::{Constraint, Layout, Rect},
     DefaultTerminal, Frame,
 };
-use robotac::board::Board;
+use robotac::{board::Board, history::History};
 use tac_types::TacMove;
 
-use crate::{board::BoardView, debug::DebugView, moves::MoveList, seed_input::SeedInput};
+use crate::{
+    board::BoardView,
+    debug::DebugView,
+    history::{LoadHistory, SaveHistory},
+    moves::MoveList,
+    seed_input::SeedInput,
+};
 
 enum Mode {
     Moves,
     SeedEdit,
+    SaveHistory,
+    LoadHistory,
+}
+
+impl Mode {
+    fn need_input(&self) -> bool {
+        match self {
+            Mode::Moves => false,
+            Mode::SeedEdit => true,
+            Mode::SaveHistory => true,
+            Mode::LoadHistory => false,
+        }
+    }
 }
 
 pub enum Message {
     Quit,
     MakeMove(TacMove),
     Reset(Option<u64>),
+    SaveHistory(String),
+    LoadHistory(String),
 }
 
 pub struct App {
     board: Board,
+    history: History,
     mode: Mode,
     board_view: BoardView,
     move_list: MoveList,
     debug: DebugView,
     seed_input: SeedInput,
+    save_history: SaveHistory,
+    load_history: LoadHistory,
     previous_seed: u64,
 }
 
@@ -45,17 +73,27 @@ impl App {
         let move_list = MoveList::new(&board);
         Self {
             board,
+            history: History::new(0),
             mode: Mode::Moves,
             board_view: BoardView::default(),
             move_list,
             debug: DebugView,
             seed_input: SeedInput::default(),
+            save_history: SaveHistory::default(),
+            load_history: LoadHistory::default(),
             previous_seed,
         }
     }
 
     pub fn new_board(&mut self, seed: u64) {
         self.board = Board::new_with_seed(seed);
+        self.history = History::new(seed);
+        self.on_state_change();
+    }
+
+    pub fn load_history(&mut self, history: &History) {
+        self.board = history.board_with_history();
+        self.history = history.clone();
         self.on_state_change();
     }
 
@@ -67,18 +105,39 @@ impl App {
                     Message::Quit => break,
                     Message::MakeMove(mv) => {
                         self.board.play(&mv);
+                        self.history.moves.push(mv);
                         self.on_state_change();
                     }
                     Message::Reset(seed) => {
                         let seed = seed.unwrap_or(self.previous_seed);
                         self.new_board(seed);
-                        self.on_state_change();
                         self.mode = Mode::Moves;
                         self.previous_seed = seed;
+                    }
+                    Message::SaveHistory(s) => {
+                        Self::write_history_to_file(&self.history, &s);
+                        self.mode = Mode::Moves
+                    }
+                    Message::LoadHistory(s) => {
+                        self.mode = Mode::Moves;
+                        if let Some(content) =
+                            std::fs::read_to_string(format!("histories/{}", s)).ok()
+                        {
+                            if let Some(history) = ron::de::from_str::<History>(&content).ok() {
+                                self.load_history(&history);
+                            }
+                        }
                     }
                 }
             }
         }
+        Ok(())
+    }
+
+    fn write_history_to_file(history: &History, name: &str) -> std::io::Result<()> {
+        let mut file = File::create(format!("histories/{}.hist", name))?;
+        let ron = ron::ser::to_string_pretty(history, ron::ser::PrettyConfig::default()).unwrap();
+        file.write(&ron.into_bytes());
         Ok(())
     }
 
@@ -87,20 +146,33 @@ impl App {
             let event = event::read().ok()?;
             let mut pass_down = false;
             if let Event::Key(key_ev) = event {
-                match key_ev.code {
-                    KeyCode::Char('q') => return Some(Message::Quit),
-                    KeyCode::Char('m') => self.mode = Mode::Moves,
-                    KeyCode::Char('n') => self.mode = Mode::SeedEdit,
-                    KeyCode::Char('r') => return Some(Message::Reset(None)),
-                    _ => {
-                        pass_down = true;
+                if matches!(key_ev.code, KeyCode::Esc) {
+                    self.mode = Mode::Moves;
+                    return None;
+                }
+
+                if !self.mode.need_input() {
+                    match key_ev.code {
+                        KeyCode::Char('q') => return Some(Message::Quit),
+                        KeyCode::Char('m') => self.mode = Mode::Moves,
+                        KeyCode::Char('n') => self.mode = Mode::SeedEdit,
+                        KeyCode::Char('r') => return Some(Message::Reset(None)),
+                        KeyCode::Char('s') => self.mode = Mode::SaveHistory,
+                        KeyCode::Char('l') => self.mode = Mode::LoadHistory,
+                        _ => {
+                            pass_down = true;
+                        }
                     }
+                } else {
+                    pass_down = true;
                 }
             }
             if pass_down {
                 return match self.mode {
                     Mode::Moves => self.move_list.update(&event),
                     Mode::SeedEdit => self.seed_input.update(&event),
+                    Mode::SaveHistory => self.save_history.update(&event),
+                    Mode::LoadHistory => self.load_history.update(&event),
                 };
             }
         }
@@ -121,14 +193,36 @@ impl App {
         frame.render_widget(self.board_view.draw(), board);
         frame.render_widget(self.move_list.draw(), moves);
         frame.render_widget(self.debug.draw(&self.board), debug);
-        if matches!(self.mode, Mode::SeedEdit) {
-            let area = Rect {
-                x: frame.area().width / 2 - 10,
-                y: frame.area().height / 2 - 1,
-                width: 30,
-                height: 3,
-            };
-            frame.render_widget(self.seed_input.draw(), area);
+        match self.mode {
+            Mode::SeedEdit => {
+                let area = Rect {
+                    x: frame.area().width / 2 - 10,
+                    y: frame.area().height / 2 - 1,
+                    width: 30,
+                    height: 3,
+                };
+                frame.render_widget(self.seed_input.draw(), area);
+            }
+            Mode::SaveHistory => {
+                let area = Rect {
+                    x: frame.area().width / 2 - 10,
+                    y: frame.area().height / 2 - 1,
+                    width: 30,
+                    height: 3,
+                };
+                frame.render_widget(self.save_history.draw(), area);
+            }
+            Mode::LoadHistory => {
+                let area = Rect {
+                    x: frame.area().width / 2 - frame.area().width / 8,
+                    y: frame.area().height / 4,
+                    width: frame.area().width / 4,
+                    height: frame.area().height / 2,
+                };
+                frame.render_widget(self.load_history.draw(), area);
+            }
+            _ => {}
         }
+        if matches!(self.mode, Mode::SeedEdit) {}
     }
 }

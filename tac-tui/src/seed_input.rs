@@ -1,11 +1,7 @@
-use crate::app::Message;
+use crate::{app::Message, popup::Popup};
 use ratatui::{
-    buffer::Buffer,
     crossterm::event::{Event, KeyCode},
-    layout::Rect,
-    style::Style,
-    text::{Line, Text},
-    widgets::{Block, Borders, Clear, Paragraph, Widget, Wrap},
+    prelude::*,
 };
 
 pub struct SeedInput {
@@ -53,47 +49,5 @@ impl SeedInput {
         Popup::default()
             .title("Input seed for new game".to_string())
             .content(self.input.clone())
-    }
-}
-
-#[derive(Debug, Default)]
-struct Popup<'a> {
-    title: Line<'a>,
-    content: Text<'a>,
-    border_style: Style,
-    title_style: Style,
-    style: Style,
-}
-
-impl<'a> Popup<'a> {
-    fn title(self, title: String) -> Self {
-        Self {
-            title: Line::from(title),
-            ..self
-        }
-    }
-    fn content(self, content: String) -> Self {
-        Self {
-            content: Text::from(content),
-            ..self
-        }
-    }
-}
-
-impl Widget for Popup<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        // ensure that all cells under the popup are cleared to avoid leaking content
-        Clear.render(area, buf);
-        let block = Block::new()
-            .title(self.title)
-            .title_style(self.title_style)
-            .borders(Borders::ALL)
-            .border_style(self.border_style);
-        Paragraph::new(self.content)
-            .wrap(Wrap { trim: true })
-            .style(self.style)
-            .left_aligned()
-            .block(block)
-            .render(area, buf);
     }
 }

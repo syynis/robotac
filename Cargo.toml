@@ -19,6 +19,8 @@ ratatui = "*"
 clap = "*"
 vek = "*"
 arraydeque = "*"
+serde = {version = "1.0.210", features = ["derive"]}
+ron = "*"
 
 [profile.dev]
 opt-level = 1

@@ -10,3 +10,5 @@ itertools = {workspace = true}
 smallvec = {workspace = true}
 ratatui = {workspace = true}
 clap = {workspace = true}
+serde = {workspace = true}
+ron = {workspace = true}

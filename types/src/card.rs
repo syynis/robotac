@@ -1,4 +1,5 @@
 use enum_map::Enum;
+use serde::{Deserialize, Serialize};
 
 pub const CARDS: [Card; 18] = [
     Card::One,
@@ -21,7 +22,9 @@ pub const CARDS: [Card; 18] = [
     Card::Tac,
 ];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Enum, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Enum, PartialOrd, Ord, Serialize, Deserialize,
+)]
 #[repr(u8)]
 pub enum Card {
     One,

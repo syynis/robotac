@@ -1,0 +1,320 @@
+(
+    seed: 0,
+    moves: [
+        (
+            card: Four,
+            action: Trade,
+            played_for: Black,
+        ),
+        (
+            card: One,
+            action: Trade,
+            played_for: Blue,
+        ),
+        (
+            card: Six,
+            action: Trade,
+            played_for: Green,
+        ),
+        (
+            card: One,
+            action: Trade,
+            played_for: Red,
+        ),
+        (
+            card: Thirteen,
+            action: Enter,
+            played_for: Black,
+        ),
+        (
+            card: One,
+            action: Enter,
+            played_for: Blue,
+        ),
+        (
+            card: Thirteen,
+            action: Enter,
+            played_for: Green,
+        ),
+        (
+            card: One,
+            action: Enter,
+            played_for: Red,
+        ),
+        (
+            card: Four,
+            action: Step(
+                from: (0),
+                to: (60),
+            ),
+            played_for: Black,
+        ),
+        (
+            card: Six,
+            action: Step(
+                from: (16),
+                to: (22),
+            ),
+            played_for: Blue,
+        ),
+        (
+            card: Four,
+            action: Step(
+                from: (32),
+                to: (28),
+            ),
+            played_for: Green,
+        ),
+        (
+            card: Two,
+            action: Step(
+                from: (48),
+                to: (50),
+            ),
+            played_for: Red,
+        ),
+        (
+            card: Six,
+            action: Step(
+                from: (60),
+                to: (2),
+            ),
+            played_for: Black,
+        ),
+        (
+            card: Trickster,
+            action: Trickster(
+                target1: (2),
+                target2: (22),
+            ),
+            played_for: Blue,
+        ),
+        (
+            card: Six,
+            action: Step(
+                from: (28),
+                to: (34),
+            ),
+            played_for: Green,
+        ),
+        (
+            card: Three,
+            action: Step(
+                from: (50),
+                to: (53),
+            ),
+            played_for: Red,
+        ),
+        (
+            card: Nine,
+            action: Step(
+                from: (22),
+                to: (31),
+            ),
+            played_for: Black,
+        ),
+        (
+            card: Nine,
+            action: Step(
+                from: (2),
+                to: (11),
+            ),
+            played_for: Blue,
+        ),
+        (
+            card: Ten,
+            action: Step(
+                from: (34),
+                to: (44),
+            ),
+            played_for: Green,
+        ),
+        (
+            card: Three,
+            action: Step(
+                from: (53),
+                to: (56),
+            ),
+            played_for: Red,
+        ),
+        (
+            card: Twelve,
+            action: Step(
+                from: (31),
+                to: (43),
+            ),
+            played_for: Black,
+        ),
+        (
+            card: Seven,
+            action: Discard,
+            played_for: Blue,
+        ),
+        (
+            card: Seven,
+            action: Discard,
+            played_for: Green,
+        ),
+        (
+            card: Five,
+            action: Step(
+                from: (56),
+                to: (61),
+            ),
+            played_for: Red,
+        ),
+        (
+            card: One,
+            action: Trade,
+            played_for: Blue,
+        ),
+        (
+            card: Three,
+            action: Trade,
+            played_for: Green,
+        ),
+        (
+            card: Six,
+            action: Trade,
+            played_for: Red,
+        ),
+        (
+            card: Three,
+            action: Trade,
+            played_for: Black,
+        ),
+        (
+            card: Two,
+            action: Step(
+                from: (11),
+                to: (13),
+            ),
+            played_for: Blue,
+        ),
+        (
+            card: Three,
+            action: Step(
+                from: (44),
+                to: (47),
+            ),
+            played_for: Green,
+        ),
+        (
+            card: One,
+            action: Enter,
+            played_for: Red,
+        ),
+        (
+            card: Three,
+            action: Step(
+                from: (43),
+                to: (46),
+            ),
+            played_for: Black,
+        ),
+        (
+            card: Six,
+            action: Step(
+                from: (13),
+                to: (19),
+            ),
+            played_for: Blue,
+        ),
+        (
+            card: Thirteen,
+            action: Enter,
+            played_for: Green,
+        ),
+        (
+            card: Eight,
+            action: Suspend,
+            played_for: Red,
+        ),
+        (
+            card: Tac,
+            action: Suspend,
+            played_for: Black,
+        ),
+        (
+            card: Seven,
+            action: Discard,
+            played_for: Blue,
+        ),
+        (
+            card: Four,
+            action: Step(
+                from: (32),
+                to: (28),
+            ),
+            played_for: Green,
+        ),
+        (
+            card: Nine,
+            action: Step(
+                from: (48),
+                to: (57),
+            ),
+            played_for: Red,
+        ),
+        (
+            card: Thirteen,
+            action: Enter,
+            played_for: Black,
+        ),
+        (
+            card: Nine,
+            action: Step(
+                from: (19),
+                to: (28),
+            ),
+            played_for: Blue,
+        ),
+        (
+            card: Six,
+            action: Step(
+                from: (47),
+                to: (53),
+            ),
+            played_for: Green,
+        ),
+        (
+            card: Trickster,
+            action: Trickster(
+                target1: (0),
+                target2: (28),
+            ),
+            played_for: Red,
+        ),
+        (
+            card: Tac,
+            action: Trickster(
+                target1: (0),
+                target2: (28),
+            ),
+            played_for: Black,
+        ),
+        (
+            card: Warrior,
+            action: Step(
+                from: (0),
+                to: (28),
+            ),
+            played_for: Blue,
+        ),
+        (
+            card: Thirteen,
+            action: Enter,
+            played_for: Green,
+        ),
+        (
+            card: Seven,
+            action: Discard,
+            played_for: Red,
+        ),
+        (
+            card: Seven,
+            action: Discard,
+            played_for: Black,
+        ),
+    ],
+)

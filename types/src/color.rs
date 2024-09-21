@@ -1,7 +1,9 @@
+use serde::{Deserialize, Serialize};
+
 use crate::Square;
 
 pub const ALL_COLORS: [Color; 4] = [Color::Black, Color::Blue, Color::Green, Color::Red];
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Color {
     Black,
     Blue,

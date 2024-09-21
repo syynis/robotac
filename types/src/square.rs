@@ -1,6 +1,10 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{bitboard::BitBoard, color::Color};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Serialize, Deserialize,
+)]
 pub struct Square(pub u8);
 
 impl Square {
