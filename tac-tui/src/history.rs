@@ -6,16 +6,9 @@ use ratatui::{
 
 use crate::{app::Message, popup::Popup};
 
+#[derive(Default)]
 pub struct SaveHistory {
     input: String,
-}
-
-impl Default for SaveHistory {
-    fn default() -> Self {
-        Self {
-            input: String::default(),
-        }
-    }
 }
 
 impl SaveHistory {
@@ -45,14 +38,9 @@ impl SaveHistory {
     }
 }
 
+#[derive(Default)]
 pub struct LoadHistory {
     selected: usize,
-}
-
-impl Default for LoadHistory {
-    fn default() -> Self {
-        Self { selected: 0 }
-    }
 }
 
 impl LoadHistory {
@@ -63,7 +51,7 @@ impl LoadHistory {
                     let file_count = std::fs::read_dir("histories")
                         .unwrap()
                         .filter(|s| {
-                            if let Some(s) = s.as_ref().ok() {
+                            if let Ok(s) = s.as_ref() {
                                 let path = s.path();
                                 !path.is_dir()
                             } else {

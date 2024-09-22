@@ -9,6 +9,7 @@ pub struct History {
 }
 
 impl History {
+    #[must_use]
     pub fn new(seed: u64) -> Self {
         Self {
             seed,
@@ -16,6 +17,7 @@ impl History {
         }
     }
 
+    #[must_use]
     pub fn board_with_history(&self) -> Board {
         let mut board = Board::new_with_seed(self.seed);
         for mv in &self.moves {

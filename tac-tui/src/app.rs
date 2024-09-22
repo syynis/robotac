@@ -115,15 +115,13 @@ impl App {
                         self.previous_seed = seed;
                     }
                     Message::SaveHistory(s) => {
-                        Self::write_history_to_file(&self.history, &s);
+                        let _ = Self::write_history_to_file(&self.history, &s);
                         self.mode = Mode::Moves
                     }
                     Message::LoadHistory(s) => {
                         self.mode = Mode::Moves;
-                        if let Some(content) =
-                            std::fs::read_to_string(format!("histories/{}", s)).ok()
-                        {
-                            if let Some(history) = ron::de::from_str::<History>(&content).ok() {
+                        if let Ok(content) = std::fs::read_to_string(format!("histories/{}", s)) {
+                            if let Ok(history) = ron::de::from_str::<History>(&content) {
                                 self.load_history(&history);
                             }
                         }
@@ -137,7 +135,7 @@ impl App {
     fn write_history_to_file(history: &History, name: &str) -> std::io::Result<()> {
         let mut file = File::create(format!("histories/{}.hist", name))?;
         let ron = ron::ser::to_string_pretty(history, ron::ser::PrettyConfig::default()).unwrap();
-        file.write(&ron.into_bytes());
+        let _ = file.write_all(&ron.into_bytes());
         Ok(())
     }
 
