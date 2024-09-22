@@ -1,7 +1,8 @@
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 
-pub const CARDS: [Card; 18] = [
+pub const NUM_CARDS: usize = 18;
+pub const CARDS: [Card; NUM_CARDS] = [
     Card::One,
     Card::Two,
     Card::Three,
@@ -49,7 +50,7 @@ pub enum Card {
 
 impl Card {
     #[must_use]
-    pub fn amount(&self) -> u8 {
+    pub const fn amount(&self) -> u8 {
         match self {
             Card::Seven => 8,
             Card::Jester | Card::Angel | Card::Devil | Card::Warrior => 1,
