@@ -80,9 +80,6 @@ impl Board {
             for home_mvs in &home_moves {
                 step_in_home_moves.push((home_mvs.clone(), board_budget, balls_bb));
             }
-            if home_budget == 0 {
-                step_in_home_moves.push((Vec::new(), board_budget, balls_bb));
-            }
 
             // For each possible move combination we can do in our home
             for home_mvs in &home_moves {
