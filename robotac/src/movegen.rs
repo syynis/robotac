@@ -207,7 +207,8 @@ impl Board {
                     color,
                 ));
             }
-            if start.distance_to_home(color) < amount && self.can_move(start, color.home()) {
+            // Need to add here in case there is ball on home square
+            if start.distance_to_home(color) < amount && self.can_move(start, color.home().add(1)) {
                 // TODO Compute the range of possible value to reach the home beforehand, to reduce computation
                 if let Some(goal_pos) = self.position_in_home(start, amount, color) {
                     moves.push(TacMove::new(
@@ -359,6 +360,7 @@ impl Board {
 }
 
 #[cfg(test)]
+#[allow(unused_must_use)]
 mod tests {
     use tac_types::ALL_COLORS;
 
@@ -544,25 +546,25 @@ mod tests {
             .for_each(|c| board.add_hand(*c, Card::Tac));
         board.add_hand(Color::Black, Card::One);
         let mv = TacMove::new(Card::One, TacAction::Enter, Color::Black);
-        board.play(mv);
+        board.play(&mv);
         assert_eq!(board.color_on(Color::Black.home()).unwrap(), Color::Black);
         assert_eq!(board.current_player(), Color::Blue);
         let moves = board.moves_for_card(board.current_player(), Card::Tac);
         assert_eq!(moves.len(), 1);
-        board.play(moves[0].clone());
+        board.play(&moves[0]);
         assert_eq!(board.current_player(), Color::Green);
         assert_eq!(board.color_on(Color::Black.home()), None);
         assert_eq!(board.color_on(Color::Blue.home()).unwrap(), Color::Blue);
         let moves = board.moves_for_card(board.current_player(), Card::Tac);
         assert_eq!(moves.len(), 1);
-        board.play(moves[0].clone());
+        board.play(&moves[0]);
         assert_eq!(board.current_player(), Color::Red);
         assert_eq!(board.color_on(Color::Black.home()).unwrap(), Color::Black);
         assert_eq!(board.color_on(Color::Blue.home()), None);
         assert_eq!(board.color_on(Color::Green.home()).unwrap(), Color::Green);
         let moves = board.moves_for_card(board.current_player(), Card::Tac);
         assert_eq!(moves.len(), 1);
-        board.play(moves[0].clone());
+        board.play(&moves[0]);
         assert_eq!(board.current_player(), Color::Black);
         assert_eq!(board.color_on(Color::Black.home()), None);
         assert_eq!(board.color_on(Color::Blue.home()).unwrap(), Color::Blue);

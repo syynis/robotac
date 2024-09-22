@@ -15,7 +15,7 @@ fn main() {
             let i = input.strip_suffix('\n').unwrap().to_owned();
             if let Ok(number) = i.parse::<usize>() {
                 let moves = board.get_moves(board.current_player());
-                board.play(moves[number].clone());
+                board.play(&moves[number]);
                 let hand = board.hand(board.current_player());
                 println!("{:?}", hand);
                 for (idx, mv) in board.get_moves(board.current_player()).iter().enumerate() {
