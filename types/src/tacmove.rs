@@ -58,7 +58,36 @@ impl Display for TacAction {
     }
 }
 
-// TODO this can probably fit into 32 bits if we are very clever
+pub enum PackedTacMove {
+    // pub card: Card,
+    // 5 bits
+    // pub action: TacAction,
+    // 16 bits
+    // from, to -> 12 bits
+    // 13 variants -> 4 bits
+    // total 12
+    // pub played_for: Color,
+    // 2 bits
+    // ---
+    // 5 + 16 + 2 => 23 -> u32
+    // PROBLEM -> Seven
+    // Seven needs 4 * (12 + 2)
+    // 12 -> from, to
+    // 2 -> color
+    // -> 56 bits
+    // half the size of unpacked
+    // IDEA
+    // Instead of storing square positions just store move amount
+    // At most 7 -> 3 bits
+    // For 4 moves that makes 12 bits
+    // For each move 1 bit if move is for partner
+    // For each move 1 bit if move goes in home
+    // -> 12 + 4 + 4 -> 20 bits
+    // This requires us to sort the moves by position and location
+    Normal(u32),
+    Seven(u32),
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TacMove {
     pub card: Card,
@@ -81,6 +110,15 @@ impl TacMove {
             played_for,
         }
     }
+}
+
+pub enum PackedTacMoveResult {
+    Capture(Color),
+    // Square -> 6 bits
+    // Color -> 2 bits
+    // (6 + 2) * 7 -> u64
+    // half the size of unpacked
+    SevenCaptures(u64),
 }
 
 #[derive(Debug, Clone, PartialEq)]

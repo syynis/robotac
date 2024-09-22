@@ -20,7 +20,6 @@ const PAST_MOVES_LEN: usize = 8;
 
 #[derive(Clone)]
 pub struct Board {
-    // TODO dont hardcode 4
     balls: [BitBoard; 4],
     player_to_move: Color,
     homes: [Home; 4],
@@ -40,6 +39,55 @@ pub struct Board {
     seed: u64,
 }
 
+#[allow(dead_code)]
+pub struct PackedBoard {
+    balls: [BitBoard; 4],
+    // homes: [Home; 4],
+    // 4 bits per home
+    homes: u16,
+    // base: [u8; 4],
+    // 3 bits per base (max is four -> 100)
+    // 4 unused bits
+    base: u16,
+    // fresh: [bool; 4],
+    // + 4 bits
+    // discard_flag: bool,
+    // jester_flag: bool,
+    // devil_flag: bool,
+    // trade_flag: bool,
+    // + 1 bit each
+    // one_or_thirteen: [bool; 4],
+    // + 4 bits
+    // player_to_move: Color,
+    // + 2 bits
+    // -> 14 bits
+    flags: u16,
+    // Could be improved?
+    // Maybe enum map with u8 for each card which should be 18 * (u8 + u8) -> 18 * 2 bytes
+    // top_idx, times_dealt -> u8 each -> 2 bytes
+    // Total: 18 * 2 + 2 = 38 bytes, down from
+    deck: Deck,
+    // 24 u8, could be smallvec
+    discarded: Vec<Card>,
+    past_moves: ArrayDeque<
+        (
+            tac_types::PackedTacMove,
+            Option<tac_types::PackedTacMoveResult>,
+        ),
+        PAST_MOVES_LEN,
+        Wrapping,
+    >,
+    // 1 card -> u8, 6 cards in hand -> 48 bits -> u64
+    // 1 card could be 5 bits so 6 cards -> 30 bits -> u32
+    // would be 96 bytes -> 16 (u32) or 32 (u64) bytes
+    hands: [u32; 4],
+    // Can't be improved I think
+    traded: [Option<Card>; 4],
+    // This doesn't belong here
+    pub move_count: u32,
+    seed: u64,
+}
+
 impl Default for Board {
     fn default() -> Self {
         Self::new()
@@ -53,8 +101,6 @@ impl Board {
     }
 
     pub fn new_with_seed(seed: u64) -> Self {
-        let mut rng = StdRng::seed_from_u64(seed);
-
         let mut s = Self {
             balls: [BitBoard::EMPTY; 4],
             player_to_move: Color::Black,
@@ -65,7 +111,7 @@ impl Board {
             jester_flag: false,
             devil_flag: false,
             trade_flag: false,
-            deck: Deck::new(&mut rng),
+            deck: Deck::default(),
             discarded: Vec::new(),
             past_moves: ArrayDeque::new(),
             hands: [const { Vec::new() }; 4].map(Hand::new),
@@ -79,8 +125,6 @@ impl Board {
         s
     }
     pub fn new_almost_done(seed: u64) -> Self {
-        let mut rng = StdRng::seed_from_u64(seed);
-
         let mut s = Self {
             balls: [BitBoard::EMPTY; 4],
             player_to_move: Color::Black,
@@ -91,7 +135,7 @@ impl Board {
             jester_flag: false,
             devil_flag: false,
             trade_flag: false,
-            deck: Deck::new(&mut rng),
+            deck: Deck::default(),
             discarded: Vec::new(),
             past_moves: ArrayDeque::new(),
             hands: [const { Vec::new() }; 4].map(Hand::new),
