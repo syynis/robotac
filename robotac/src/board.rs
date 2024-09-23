@@ -11,7 +11,7 @@ use tac_types::{
     BitBoard, Card, Color, Home, Square, TacAction, TacMove, TacMoveResult, ALL_COLORS,
 };
 
-use crate::{deck::Deck, hand::Hand};
+use crate::{deck::Deck, hand::Hand, knowledge::Knowledge};
 
 // This is is choosen because the situation which needs the most lookup into past is:
 // Card - Jester - Tac - Tac - Tac - Tac - Tac
@@ -650,6 +650,43 @@ impl Board {
             player
         }
     }
+
+    pub fn redetermine(&mut self, observer: Color, knowledge: Knowledge) {
+        let mut rng = rand::thread_rng();
+        // Store hand count first
+        let amounts = ALL_COLORS
+            .iter()
+            .filter_map(|player| {
+                (*player != observer).then_some((
+                    *player,
+                    self.hand(*player).amount() - knowledge.known_cards(*player).len(),
+                ))
+            })
+            .collect_vec();
+
+        // Put back cards in hand back into deck
+        for player in ALL_COLORS {
+            if player == observer {
+                continue;
+            }
+            for card in self.hands[player as usize].0.drain(..) {
+                self.deck.put_back(card);
+            }
+        }
+
+        // Draw cards equal to the amount put back
+        for (player, amount) in amounts {
+            let hand = &mut self.hands[player as usize];
+            (0..amount).for_each(|_| {
+                hand.push(self.deck.draw_one(&mut rng));
+            });
+            for known in knowledge.known_cards(player) {
+                hand.push(known);
+            }
+            debug_assert!(hand.amount() == amount + knowledge.known_cards(player).len());
+        }
+    }
+
     #[cfg(test)]
     pub fn set_player(&mut self, player: Color) {
         self.player_to_move = player;

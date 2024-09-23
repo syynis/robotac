@@ -55,16 +55,29 @@ impl Deck {
         let deal_amount = if self.times_dealt == 4 { 24 } else { 20 };
         let mut cards = Vec::new();
         (0..deal_amount).for_each(|_| {
-            let (card, amount) = self
-                .cards
-                .choose_weighted_mut(rng, |(_, amount)| *amount)
-                .expect("Will always be non-empty with valid weights");
-            debug_assert!(*amount > 0);
-            *amount -= 1;
-            cards.push(*card);
+            let card = self.draw_one(rng);
+            cards.push(card);
         });
 
         self.times_dealt += 1;
         cards
+    }
+
+    pub fn take(&mut self, card: Card) {
+        self.cards[card as usize].1 -= 1;
+    }
+
+    pub fn put_back(&mut self, card: Card) {
+        self.cards[card as usize].1 += 1;
+    }
+
+    pub fn draw_one<R: Rng>(&mut self, rng: &mut R) -> Card {
+        let (card, amount) = self
+            .cards
+            .choose_weighted_mut(rng, |(_, amount)| *amount)
+            .expect("Will always be non-empty with valid weights");
+        debug_assert!(*amount > 0);
+        *amount -= 1;
+        *card
     }
 }

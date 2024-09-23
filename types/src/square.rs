@@ -39,4 +39,13 @@ impl Square {
             Color::Red => self.0 + 16,
         } & 63)
     }
+
+    #[must_use]
+    pub fn distance_to(self, other: Square) -> u8 {
+        if self <= other {
+            other.0 - self.0
+        } else {
+            64 - (self.0 - other.0)
+        }
+    }
 }

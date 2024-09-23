@@ -46,4 +46,16 @@ impl Color {
             Color::Red => Square(48),
         }
     }
+
+    #[must_use]
+    /// How many players are between self and other
+    pub fn between(self, other: Self) -> usize {
+        let mut res = 0;
+        let mut curr = self.next();
+        while curr != other {
+            curr = curr.next();
+            res += 1;
+        }
+        res
+    }
 }

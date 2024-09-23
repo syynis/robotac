@@ -50,13 +50,32 @@ pub enum Card {
 
 impl Card {
     #[must_use]
-    pub const fn amount(&self) -> u8 {
+    pub const fn amount(self) -> u8 {
         match self {
             Card::Seven => 8,
             Card::Jester | Card::Angel | Card::Devil | Card::Warrior => 1,
             Card::Tac => 4,
             Card::One | Card::Thirteen => 9,
             _ => 7,
+        }
+    }
+
+    #[must_use]
+    pub const fn from_steps(steps: u8) -> Option<Card> {
+        match steps {
+            1 => Some(Card::One),
+            2 => Some(Card::Two),
+            3 => Some(Card::Three),
+            4 => Some(Card::Four),
+            5 => Some(Card::Five),
+            6 => Some(Card::Six),
+            7 => Some(Card::Seven),
+            8 => Some(Card::Eight),
+            9 => Some(Card::Nine),
+            10 => Some(Card::Ten),
+            12 => Some(Card::Twelve),
+            13 => Some(Card::Thirteen),
+            _ => None,
         }
     }
 
@@ -85,7 +104,7 @@ impl Card {
     }
 
     #[must_use]
-    pub fn is_simple(&self) -> Option<u8> {
+    pub fn is_simple(self) -> Option<u8> {
         match self {
             Card::One => Some(1),
             Card::Two => Some(2),

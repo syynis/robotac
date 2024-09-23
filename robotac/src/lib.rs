@@ -5,6 +5,7 @@
     clippy::struct_excessive_bools
 )]
 use board::Board;
+use knowledge::Knowledge;
 use mcts::{policies::UCTPolicy, Evaluator, GameState, MCTS};
 use tac_types::{Color, TacMove};
 
@@ -80,7 +81,8 @@ impl GameState for Board {
         self.play(mv);
     }
 
-    fn randomize_determination(&mut self, _observer: Self::Player) {
-        todo!()
+    fn randomize_determination(&mut self, observer: Self::Player) {
+        // TODO figure out where to store knowledge
+        self.redetermine(observer, Knowledge::new(observer));
     }
 }
