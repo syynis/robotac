@@ -68,6 +68,7 @@ impl GameState for Board {
     type Move = TacMove;
     type Player = Color;
     type MoveList = Vec<Self::Move>;
+    type Knowledge = Knowledge;
 
     fn current_player(&self) -> Self::Player {
         self.current_player()
@@ -81,8 +82,12 @@ impl GameState for Board {
         self.play(mv);
     }
 
-    fn randomize_determination(&mut self, observer: Self::Player) {
+    fn randomize_determination(&mut self, observer: Self::Player, knowledge: &Self::Knowledge) {
         // TODO figure out where to store knowledge
-        self.redetermine(observer, Knowledge::new(observer));
+        self.redetermine(observer, knowledge);
+    }
+
+    fn update_knowledge(&self, mv: &Self::Move, knowledge: &mut Self::Knowledge) {
+        knowledge.update_after_move(mv, self);
     }
 }

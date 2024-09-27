@@ -651,7 +651,7 @@ impl Board {
         }
     }
 
-    pub fn redetermine(&mut self, observer: Color, knowledge: Knowledge) {
+    pub fn redetermine(&mut self, observer: Color, knowledge: &Knowledge) {
         let mut rng = rand::thread_rng();
         // Store hand count first
         let amounts = ALL_COLORS
