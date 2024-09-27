@@ -30,18 +30,9 @@ impl MCTS for TacAI {
 impl Evaluator<TacAI> for TacEval {
     type StateEval = i64;
 
-    fn state_eval_new(
-        &self,
-        state: &<TacAI as MCTS>::State,
-        _handle: Option<mcts::search::SearchHandle<TacAI>>,
-    ) -> Self::StateEval {
-        state.eval()
-    }
-
     fn eval_new(
         &self,
         state: &<TacAI as MCTS>::State,
-        _moves: &mcts::MoveList<TacAI>,
         _handle: Option<mcts::search::SearchHandle<TacAI>>,
     ) -> Self::StateEval {
         state.eval()
@@ -83,11 +74,14 @@ impl GameState for Board {
     }
 
     fn randomize_determination(&mut self, observer: Self::Player, knowledge: &Self::Knowledge) {
-        // TODO figure out where to store knowledge
         self.redetermine(observer, knowledge);
     }
 
     fn update_knowledge(&self, mv: &Self::Move, knowledge: &mut Self::Knowledge) {
         knowledge.update_after_move(mv, self);
+    }
+
+    fn knowledge_from_state(&self, observer: Self::Player) -> Self::Knowledge {
+        Knowledge::new_from_board(observer, self)
     }
 }

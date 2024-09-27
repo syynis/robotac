@@ -17,6 +17,12 @@ impl From<Color> for usize {
     }
 }
 
+impl From<usize> for Color {
+    fn from(value: usize) -> Self {
+        unsafe { std::mem::transmute(value as u8) }
+    }
+}
+
 impl Color {
     #[must_use]
     pub const fn next(self) -> Self {

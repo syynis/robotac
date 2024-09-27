@@ -30,6 +30,13 @@ impl Knowledge {
         }
     }
 
+    #[must_use]
+    pub fn new_from_board(observer: Color, board: &Board) -> Self {
+        let mut res = Self::new(observer);
+        res.update_with_hand(board.hand(observer));
+        res
+    }
+
     pub fn set_announce(&mut self, announce: [bool; 3]) {
         self.announce = announce;
 
