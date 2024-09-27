@@ -43,8 +43,8 @@ impl Evaluator<TacAI> for TacEval {
         state: &<TacAI as MCTS>::State,
         _moves: &mcts::MoveList<TacAI>,
         _handle: Option<mcts::search::SearchHandle<TacAI>>,
-    ) -> (Vec<mcts::MoveEval<TacAI>>, Self::StateEval) {
-        (Vec::new(), state.eval())
+    ) -> Self::StateEval {
+        state.eval()
     }
 
     fn eval_existing(

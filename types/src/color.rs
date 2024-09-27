@@ -11,6 +11,12 @@ pub enum Color {
     Red,
 }
 
+impl From<Color> for usize {
+    fn from(value: Color) -> Self {
+        value as usize
+    }
+}
+
 impl Color {
     #[must_use]
     pub const fn next(self) -> Self {
