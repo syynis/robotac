@@ -119,7 +119,7 @@ impl Board {
         // Moves for balls that are not locked in their home
         // Uses matching on the bit patterns that correspond to states in which there are unlocked balls
         // with enough space to move the desired amount
-        moves.extend(Self::home_moves_for(self.home(play_for), play_for, card));
+        moves.extend(Self::home_moves_for(*self.home(play_for), play_for, card));
 
         // Moves we can only do with balls on the board
         if self.can_play(play_for) {

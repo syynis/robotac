@@ -7,7 +7,7 @@ use crate::{board::Board, hand::Hand};
 pub struct Knowledge {
     observer: Color,
     hands: [EnumMap<Card, CardKnowledgeKind>; 3],
-    announce: [bool; 3],
+    has_opening: [bool; 3],
     history: EnumMap<Card, u8>,
     traded_away: Option<Card>,
     got_traded: Option<Card>,
@@ -27,7 +27,7 @@ impl Knowledge {
         Self {
             observer,
             hands: [EnumMap::default(); 3],
-            announce: [false; 3],
+            has_opening: [false; 3],
             history: EnumMap::default(),
             traded_away: None,
             got_traded: None,
@@ -40,35 +40,41 @@ impl Knowledge {
         res.update_with_hand(board.hand(observer));
         if board.just_started() {
             res.hands = [EnumMap::default(); 3];
-            let announce = board.announce();
-            let announce_without_observer = [
-                announce[observer.next() as usize],
-                announce[observer.partner() as usize],
-                announce[observer.prev() as usize],
+            let openings = board.openings();
+            let others_openings = [
+                openings[observer.next() as usize],
+                openings[observer.partner() as usize],
+                openings[observer.prev() as usize],
             ];
-            res.set_announce(announce_without_observer);
+            res.set_openings(others_openings);
         }
         res.sync();
         res
     }
 
-    pub fn set_announce(&mut self, announce: [bool; 3]) {
-        self.announce = announce;
+    pub fn set_openings(&mut self, openings: [bool; 3]) {
+        self.has_opening = openings;
 
-        for (idx, has_one_thirteen) in announce.iter().enumerate() {
-            let has_one_thirteen = *has_one_thirteen;
-            // Partner
-            if idx == 1 {
-                if !has_one_thirteen {
-                    self.hands[idx][Card::One] = CardKnowledgeKind::Exact(0);
-                    self.hands[idx][Card::Thirteen] = CardKnowledgeKind::Exact(0);
-                }
-                continue;
-            }
-            if !has_one_thirteen {
-                self.hands[idx][Card::One] = CardKnowledgeKind::Atmost(1);
-                self.hands[idx][Card::Thirteen] = CardKnowledgeKind::Atmost(1);
-            }
+        let (next, prev) = (openings[0], openings[2]);
+        let partner = openings[1];
+        if !partner {
+            self.hands[1][Card::One] = CardKnowledgeKind::Exact(0);
+            self.hands[1][Card::Thirteen] = CardKnowledgeKind::Exact(0);
+        }
+        // If both enemies have no openings we know for sure both can't have any
+        // If only one of them has no openings, we know they can have at most one (traded from partner)
+        // TODO use this information to know when the enemy with no openings played one, we know he can't have any more
+        if !next && !prev {
+            self.hands[0][Card::One] = CardKnowledgeKind::Exact(0);
+            self.hands[0][Card::Thirteen] = CardKnowledgeKind::Exact(0);
+            self.hands[2][Card::One] = CardKnowledgeKind::Exact(0);
+            self.hands[2][Card::Thirteen] = CardKnowledgeKind::Exact(0);
+        } else if !next {
+            self.hands[0][Card::One] = CardKnowledgeKind::Atmost(1);
+            self.hands[0][Card::Thirteen] = CardKnowledgeKind::Atmost(1);
+        } else if !prev {
+            self.hands[2][Card::One] = CardKnowledgeKind::Atmost(1);
+            self.hands[2][Card::Thirteen] = CardKnowledgeKind::Atmost(1);
         }
     }
 
@@ -79,13 +85,13 @@ impl Knowledge {
             }
             self.hands = [EnumMap::default(); 3];
             self.update_with_hand(board.hand(self.observer));
-            let announce = board.announce();
+            let announce = board.openings();
             let announce_without_observer = [
                 announce[self.observer.next() as usize],
                 announce[self.observer.partner() as usize],
                 announce[self.observer.prev() as usize],
             ];
-            self.set_announce(announce_without_observer);
+            self.set_openings(announce_without_observer);
         }
         if matches!(mv.action, TacAction::Trade) {
             if mv.played_for == self.observer.partner() {
@@ -121,7 +127,7 @@ impl Knowledge {
 
     pub fn discarded_no_balls_in_play(&mut self, board: &Board) {
         let player = board.current_player();
-        let home = board.home(board.play_for(player));
+        let home = *board.home(board.play_for(player));
         // All these can be played even with no balls in play
         self.rule_out(Card::One, player);
         self.rule_out(Card::Thirteen, player);
@@ -144,7 +150,7 @@ impl Knowledge {
 
     pub fn discarded_balls_in_play(&mut self, board: &Board, card: Card) {
         self.discarded_no_balls_in_play(board);
-        let player = board.play_for(oard.current_player());
+        let player = board.play_for(board.current_player());
         // Card is used to step forward
         if card.is_simple().is_some() {
             let ours = board.balls_with(player);
@@ -247,8 +253,10 @@ impl Knowledge {
 
 impl std::fmt::Debug for Knowledge {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{:?}", self.observer)?;
-        writeln!(f, "{:?}", self.announce)?;
+        writeln!(f, "Obs  {:?}", self.observer)?;
+        writeln!(f, "Open {:?}", self.has_opening)?;
+        writeln!(f, "Away {:?}", self.traded_away)?;
+        writeln!(f, "Got  {:?}", self.got_traded)?;
         for (idx, k) in self.hands.iter().enumerate() {
             if idx == 0 {
                 write!(f, "next: ")?;
@@ -257,12 +265,12 @@ impl std::fmt::Debug for Knowledge {
             } else {
                 write!(f, "prev: ")?;
             }
-            for v in k.values() {
+            for (c, v) in k.iter() {
                 if matches!(
                     v,
                     CardKnowledgeKind::Atmost(_) | CardKnowledgeKind::Exact(_)
                 ) {
-                    write!(f, "{v:?}, ")?;
+                    write!(f, "({c:?}, {v:?}), ")?;
                 }
             }
             writeln!(f)?;
@@ -274,12 +282,30 @@ impl std::fmt::Debug for Knowledge {
 
 #[cfg(test)]
 mod tests {
+    use mcts::GameState;
+    use rand::{seq::IteratorRandom, thread_rng};
+
     use super::*;
     #[test]
     fn announce() {
-        let board = Board::new_with_seed(1);
+        let mut board = Board::new_with_seed(2);
+        let mut rng = thread_rng();
         println!("{:?}", board);
-        let know = Knowledge::new_from_board(Color::Black, &board);
-        println!("{:?}", know);
+        let mut know: [_; 4] =
+            core::array::from_fn(|i| Knowledge::new_from_board(Color::from(i), &board));
+        for k in know {
+            println!("{:?}", k);
+        }
+        (0..4).for_each(|_| {
+            let get_moves = &board.get_moves(board.current_player());
+            let mv = get_moves.iter().choose(&mut rng).unwrap();
+            board.make_move(mv);
+            for k in &mut know {
+                k.update_after_move(mv, &board);
+            }
+        });
+        for k in know {
+            println!("{:?}", k);
+        }
     }
 }

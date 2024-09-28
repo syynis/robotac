@@ -37,7 +37,7 @@ impl Board {
         // This still needs to take into account moves that go from ring to home
         let mut moves = Vec::new();
         let num_balls = self.balls_with(player).len();
-        let home = self.home(player);
+        let home = *self.home(player);
         let balls_bb = self.balls_with(player);
         let can_move_home = !(home.is_locked() || home.is_empty());
         let max_home = if can_move_home { 8 } else { 1 };

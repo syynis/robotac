@@ -251,8 +251,8 @@ impl Board {
 
     /// Returns the `Home` of a given player.
     #[must_use]
-    pub fn home(&self, color: Color) -> Home {
-        self.homes[color as usize]
+    pub fn home(&self, color: Color) -> &Home {
+        &self.homes[color as usize]
     }
 
     /// Returns true if player has no ball on home square
@@ -413,7 +413,13 @@ impl Board {
                 self.balls_with(c).len()
                     + self.home(c).amount() as usize
                     + self.num_base(c) as usize,
-                4
+                4,
+                "{:?} {:?} {:?} {:?} {:?}\n",
+                c,
+                self.balls_with(c).len(),
+                self.home(c).amount(),
+                self.num_base(c),
+                self
             );
         }
     }
@@ -502,7 +508,7 @@ impl Board {
             TacAction::StepHome { from, to } => self.move_ball_in_goal(to, from, player),
             TacAction::StepInHome { from, to } => {
                 self.set(from, player);
-                self.home(player).unset(to);
+                self.homes[player as usize].unset(to);
             }
             TacAction::Trickster { target1, target2 } => self.swap_balls(target1, target2),
             TacAction::Enter => {
@@ -546,7 +552,7 @@ impl Board {
                     match s {
                         TacAction::Step { to, .. } => self.unset(*to, player),
                         TacAction::StepHome { to, .. } | TacAction::StepInHome { to, .. } => {
-                            self.home(player).unset(*to);
+                            self.homes[player as usize].unset(*to);
                         }
                         _ => unreachable!(),
                     }
@@ -556,7 +562,7 @@ impl Board {
                         TacAction::Step { from, .. } | TacAction::StepInHome { from, .. } => {
                             self.set(*from, player);
                         }
-                        TacAction::StepHome { from, .. } => self.home(player).set(*from),
+                        TacAction::StepHome { from, .. } => self.homes[player as usize].set(*from),
                         _ => unreachable!(),
                     }
                 }
@@ -729,7 +735,7 @@ impl Board {
     }
 
     #[must_use]
-    pub fn announce(&self) -> [bool; 4] {
+    pub fn openings(&self) -> [bool; 4] {
         self.one_or_thirteen
     }
 
