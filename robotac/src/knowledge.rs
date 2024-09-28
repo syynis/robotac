@@ -265,7 +265,7 @@ impl std::fmt::Debug for Knowledge {
             } else {
                 write!(f, "prev: ")?;
             }
-            for (c, v) in k.iter() {
+            for (c, v) in k {
                 if matches!(
                     v,
                     CardKnowledgeKind::Atmost(_) | CardKnowledgeKind::Exact(_)
@@ -290,11 +290,11 @@ mod tests {
     fn announce() {
         let mut board = Board::new_with_seed(2);
         let mut rng = thread_rng();
-        println!("{:?}", board);
+        println!("{board:?}");
         let mut know: [_; 4] =
             core::array::from_fn(|i| Knowledge::new_from_board(Color::from(i), &board));
         for k in know {
-            println!("{:?}", k);
+            println!("{k:?}");
         }
         (0..4).for_each(|_| {
             let get_moves = &board.get_moves(board.current_player());
@@ -305,7 +305,7 @@ mod tests {
             }
         });
         for k in know {
-            println!("{:?}", k);
+            println!("{k:?}");
         }
     }
 }

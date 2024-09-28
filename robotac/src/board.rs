@@ -561,7 +561,7 @@ impl Board {
                     match s {
                         TacAction::Step { to, .. } => self.unset(*to, player),
                         TacAction::StepHome { to, .. } | TacAction::StepInHome { to, .. } => {
-                            self.homes[player as usize].unset(*to)
+                            self.homes[player as usize].unset(*to);
                         }
                         _ => unreachable!(),
                     }
@@ -821,14 +821,14 @@ mod tests {
         let mut board = Board::new();
         board.xor(Square(10), Color::Black);
         for i in 1..64u8 {
-            assert_eq!(true, board.can_move(Square(10), Square(10).add(i)));
+            assert!(board.can_move(Square(10), Square(10).add(i)));
         }
         board.xor(Square(12), Color::Blue);
         for i in 1..3u8 {
-            assert_eq!(true, board.can_move(Square(10), Square(10).add(i)));
+            assert!(board.can_move(Square(10), Square(10).add(i)));
         }
         for i in 3..13u8 {
-            assert_eq!(false, board.can_move(Square(10), Square(10).add(i)));
+            assert!(!board.can_move(Square(10), Square(10).add(i)));
         }
     }
 }

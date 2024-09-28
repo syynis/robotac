@@ -81,6 +81,7 @@ impl Deck {
         *card
     }
 
+    #[must_use]
     pub fn fresh(&self) -> bool {
         self.times_dealt == 1
     }
