@@ -23,7 +23,7 @@ fn main() {
             mcts.advance(&best_move);
         };
     });
-    mcts.playout_n_parallel(10_000_000, 8);
+    mcts.playout_n_parallel(1_000_000, 8);
     (0..8).for_each(|_| {
         if let Some(best_move) = mcts.best_move() {
             mcts.print_root_legal_moves();

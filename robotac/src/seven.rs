@@ -401,3 +401,37 @@ fn get_home_moves_with_budget(home: Home, budget: u8) -> Vec<Vec<(u8, u8)>> {
     }
     moves
 }
+
+#[cfg(test)]
+#[allow(unused_must_use)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn seven_moves() {
+        let mut board = Board::new();
+        let player = Color::Black;
+        board.put_ball_in_play(player);
+        let moves = board.seven_moves(player);
+
+        assert_eq!(moves.len(), 1);
+        board.move_ball(Square(0), Square(7), player);
+        board.put_ball_in_play(player);
+        let moves = board.seven_moves(player);
+
+        assert_eq!(moves.len(), 8);
+        board.move_ball(Square(7), Square(14), player);
+        board.move_ball(Square(0), Square(7), player);
+        board.put_ball_in_play(player);
+        let moves = board.seven_moves(player);
+
+        assert_eq!(moves.len(), 36);
+        board.move_ball(Square(14), Square(21), player);
+        board.move_ball(Square(7), Square(14), player);
+        board.move_ball(Square(0), Square(7), player);
+        board.put_ball_in_play(player);
+        let moves = board.seven_moves(player);
+
+        assert_eq!(moves.len(), 120);
+    }
+}

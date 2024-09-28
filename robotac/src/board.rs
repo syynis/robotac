@@ -1,4 +1,5 @@
 use std::{
+    cmp::Ordering,
     ops::{BitOr, BitXor},
     option::Option,
 };
@@ -432,7 +433,9 @@ impl Board {
             TacAction::StepHome { from, to } => self.move_ball_in_goal(from, to, player),
             TacAction::StepInHome { from, to } => self.move_ball_to_goal(from, to, player),
             TacAction::Trickster { target1, target2 } => self.swap_balls(target1, target2),
-            TacAction::Enter => return self.put_ball_in_play(player).map(TacMoveResult::Capture),
+            TacAction::Enter | TacAction::AngelEnter => {
+                return self.put_ball_in_play(player).map(TacMoveResult::Capture)
+            }
             TacAction::Suspend => self.discard_flag = true,
             TacAction::Jester => {
                 self.jester_flag = true;
@@ -440,38 +443,52 @@ impl Board {
             }
             TacAction::Devil => self.devil_flag = true,
             TacAction::Discard => self.discard_flag = false,
-            TacAction::AngelEnter => {
-                return self.put_ball_in_play(player).map(TacMoveResult::Capture)
-            }
             TacAction::SevenSteps { steps } => {
                 for s in &steps {
                     if let TacAction::StepHome { from, to } = s {
                         self.move_ball_in_goal(*from, *to, player);
                     };
                 }
+
                 let mut board_steps = steps
                     .iter()
-                    .filter_map(|s| {
-                        if let TacAction::Step { from, to } = s {
-                            Some((*from, *to))
+                    .filter_map(|s| match s {
+                        TacAction::Step { from, to } => Some((*from, *to, None)),
+                        TacAction::StepInHome { from, to } => {
+                            Some((*from, player.home(), Some(*to)))
+                        }
+                        _ => None,
+                    })
+                    .sorted_unstable_by(|(s1, _, _), (s2, _, _)| {
+                        if s1.0 == 0 && s2.0 == 63 {
+                            Ordering::Greater
+                        } else if s1.0 == 63 && s2.0 == 0 {
+                            Ordering::Less
                         } else {
-                            None
+                            Ord::cmp(s1, s2)
                         }
                     })
+                    .rev()
                     .collect_vec();
                 let mut res = SmallVec::new();
                 let mut change = true;
                 while change {
                     change = false;
-                    for (s, e) in &mut board_steps {
+                    for (s, e, g) in &mut board_steps {
                         if s == e {
-                            continue;
+                            if let Some(goal) = g {
+                                self.move_ball_to_goal(*e, *goal, player);
+                                *g = None;
+                                change = true;
+                            }
+                        } else {
+                            let next = s.add(1);
+                            if let Some(cap) = self.move_ball(*s, next, player) {
+                                res.push((next, cap));
+                            }
+                            *s = next;
+                            change = true;
                         }
-                        if let Some(cap) = self.move_ball(*s, s.add(1), player) {
-                            res.push((s.add(1), cap));
-                        }
-                        *s = s.add(1);
-                        change = true;
                     }
                 }
                 if res.is_empty() {
@@ -511,7 +528,7 @@ impl Board {
                 self.homes[player as usize].unset(to);
             }
             TacAction::Trickster { target1, target2 } => self.swap_balls(target1, target2),
-            TacAction::Enter => {
+            TacAction::Enter | TacAction::AngelEnter => {
                 self.unset(player.home(), player);
                 self.base[player as usize] += 1;
                 if let Some(TacMoveResult::Capture(captured)) = captured {
@@ -535,14 +552,6 @@ impl Board {
                     }
                 }
             }
-            TacAction::AngelEnter => {
-                self.unset(player.home(), player);
-                self.base[player as usize] += 1;
-                if let Some(TacMoveResult::Capture(captured)) = captured {
-                    self.base[captured as usize] -= 1;
-                    self.set(player.home(), captured);
-                }
-            }
             TacAction::SevenSteps { steps } => {
                 // We have to do undoing for step and step home in two steps
                 // This is because different two steps could share the same square as
@@ -552,7 +561,7 @@ impl Board {
                     match s {
                         TacAction::Step { to, .. } => self.unset(*to, player),
                         TacAction::StepHome { to, .. } | TacAction::StepInHome { to, .. } => {
-                            self.homes[player as usize].unset(*to);
+                            self.homes[player as usize].unset(*to)
                         }
                         _ => unreachable!(),
                     }
