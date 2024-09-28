@@ -27,12 +27,10 @@ impl Hand {
     /// # Panics
     /// If card is not in hand
     pub fn remove(&mut self, card: Card) {
-        self.0.remove(
-            self.0
-                .iter()
-                .position(|x| *x == card)
-                .expect("We require the card to be in hand"),
-        );
+        self.0
+            .remove(self.0.iter().position(|x| *x == card).expect(&format!(
+                "We require the card to be in hand {card:?} {self:?}"
+            )));
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Card> + '_ {

@@ -1,5 +1,6 @@
 use app::App;
 
+pub mod ai_debug;
 pub mod app;
 pub mod board;
 pub mod debug;

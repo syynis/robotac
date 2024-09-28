@@ -273,7 +273,7 @@ impl Board {
             Card::Warrior => {
                 moves.push(TacMove::new(
                     card,
-                    TacAction::Step {
+                    TacAction::Warrior {
                         from: start,
                         to: self.warrior_target(start, color),
                     },

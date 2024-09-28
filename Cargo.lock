@@ -735,6 +735,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "itertools 0.12.1",
+ "mcts",
  "ratatui",
  "robotac",
  "ron",

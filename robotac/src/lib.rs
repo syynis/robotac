@@ -18,8 +18,8 @@ pub mod knowledge;
 pub mod movegen;
 pub mod seven;
 
-struct TacAI;
-struct TacEval;
+pub struct TacAI;
+pub struct TacEval;
 
 impl MCTS for TacAI {
     type State = Board;
@@ -35,7 +35,7 @@ impl Evaluator<TacAI> for TacEval {
         state: &<TacAI as MCTS>::State,
         _handle: Option<mcts::search::SearchHandle<TacAI>>,
     ) -> Self::StateEval {
-        state.eval()
+        state.eval2()
     }
 
     fn eval_existing(

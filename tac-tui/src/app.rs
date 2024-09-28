@@ -4,15 +4,17 @@ use std::{
     time::Duration,
 };
 
+use mcts::{manager::Manager, policies::UCTPolicy};
 use ratatui::{
     crossterm::event::{self, Event, KeyCode},
     layout::{Constraint, Layout, Rect},
     DefaultTerminal, Frame,
 };
-use robotac::{board::Board, history::History};
+use robotac::{board::Board, history::History, TacAI, TacEval};
 use tac_types::TacMove;
 
 use crate::{
+    ai_debug::AiDebugView,
     board::BoardView,
     debug::DebugView,
     history::{LoadHistory, SaveHistory},
@@ -50,9 +52,11 @@ pub struct App {
     board: Board,
     history: History,
     mode: Mode,
+    ai: Manager<TacAI>,
     board_view: BoardView,
     move_list: MoveList,
     debug: DebugView,
+    ai_debug: AiDebugView,
     seed_input: SeedInput,
     save_history: SaveHistory,
     load_history: LoadHistory,
@@ -69,15 +73,17 @@ impl App {
     pub fn new() -> Self {
         let previous_seed = 0;
         let board = Board::new_with_seed(previous_seed);
-        // let board = Board::new_almost_done(previous_seed);
+        let ai = Manager::new(board.clone(), TacAI, UCTPolicy(0.7), TacEval);
         let move_list = MoveList::new(&board);
         Self {
             board,
             history: History::new(0),
             mode: Mode::Moves,
+            ai,
             board_view: BoardView::default(),
             move_list,
             debug: DebugView,
+            ai_debug: AiDebugView,
             seed_input: SeedInput::default(),
             save_history: SaveHistory::default(),
             load_history: LoadHistory::default(),
@@ -157,6 +163,7 @@ impl App {
                         KeyCode::Char('r') => return Some(Message::Reset(None)),
                         KeyCode::Char('s') => self.mode = Mode::SaveHistory,
                         KeyCode::Char('l') => self.mode = Mode::LoadHistory,
+                        KeyCode::Char('p') => self.ai.playout_n(1000),
                         _ => {
                             pass_down = true;
                         }
@@ -191,6 +198,7 @@ impl App {
         frame.render_widget(self.board_view.draw(), board);
         frame.render_widget(self.move_list.draw(), moves);
         frame.render_widget(self.debug.draw(&self.board), debug);
+        // frame.render_widget(self.ai_debug.draw(&self.ai), debug);
         match self.mode {
             Mode::SeedEdit => {
                 let area = Rect {

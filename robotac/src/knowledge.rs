@@ -1,14 +1,16 @@
 use enum_map::EnumMap;
-use tac_types::{Card, Color, TacMove, CARDS};
+use tac_types::{Card, Color, TacAction, TacMove, CARDS};
 
 use crate::{board::Board, hand::Hand};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Knowledge {
     observer: Color,
     hands: [EnumMap<Card, CardKnowledgeKind>; 3],
     announce: [bool; 3],
     history: EnumMap<Card, u8>,
+    traded_away: Option<Card>,
+    got_traded: Option<Card>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Default, Ord, Hash)]
@@ -27,6 +29,8 @@ impl Knowledge {
             hands: [EnumMap::default(); 3],
             announce: [false; 3],
             history: EnumMap::default(),
+            traded_away: None,
+            got_traded: None,
         }
     }
 
@@ -34,6 +38,17 @@ impl Knowledge {
     pub fn new_from_board(observer: Color, board: &Board) -> Self {
         let mut res = Self::new(observer);
         res.update_with_hand(board.hand(observer));
+        if board.just_started() {
+            res.hands = [EnumMap::default(); 3];
+            let announce = board.announce();
+            let announce_without_observer = [
+                announce[observer.next() as usize],
+                announce[observer.partner() as usize],
+                announce[observer.prev() as usize],
+            ];
+            res.set_announce(announce_without_observer);
+        }
+        res.sync();
         res
     }
 
@@ -58,10 +73,44 @@ impl Knowledge {
     }
 
     pub fn update_after_move(&mut self, mv: &TacMove, board: &Board) {
+        if board.just_started() {
+            if board.deck_fresh() {
+                self.history = EnumMap::default();
+            }
+            self.hands = [EnumMap::default(); 3];
+            self.update_with_hand(board.hand(self.observer));
+            let announce = board.announce();
+            let announce_without_observer = [
+                announce[self.observer.next() as usize],
+                announce[self.observer.partner() as usize],
+                announce[self.observer.prev() as usize],
+            ];
+            self.set_announce(announce_without_observer);
+        }
+        if matches!(mv.action, TacAction::Trade) {
+            if mv.played_for == self.observer.partner() {
+                self.got_traded = Some(mv.card);
+                self.update_with_card(mv.card);
+            } else if mv.played_for == self.observer {
+                self.traded_away = Some(mv.card);
+            }
+            return;
+        }
+
         let player = board.play_for(board.current_player());
-        self.update_with_card(mv.card);
+        // If partner plays card we traded away, don't update history because it is already accounted for
+        if let Some(traded) = self.traded_away {
+            if traded == mv.card && self.observer.partner() == player.prev() {
+                self.traded_away.take();
+            }
+        } else {
+            // Update history with card played
+            self.update_with_card(mv.card);
+        }
+        // Check which cards can still be in the deck
         self.sync();
-        if matches!(mv.action, tac_types::TacAction::Discard) && !board.force_discard() {
+        // Previous player discard because they couldn't play anything
+        if matches!(mv.action, tac_types::TacAction::Discard) && !board.was_force_discard() {
             if board.balls_with(player).is_empty() {
                 self.discarded_no_balls_in_play(board);
             } else {
@@ -95,10 +144,12 @@ impl Knowledge {
 
     pub fn discarded_balls_in_play(&mut self, board: &Board, card: Card) {
         self.discarded_no_balls_in_play(board);
-        let player = board.current_player();
+        let player = board.play_for(oard.current_player());
+        // Card is used to step forward
         if card.is_simple().is_some() {
             let ours = board.balls_with(player);
             let all = board.all_balls();
+            // Get the ball with the highest distance forwards to the next ball
             let max_amount_between_balls = ours
                 .iter()
                 .max_by_key(|ball| {
@@ -108,17 +159,23 @@ impl Knowledge {
                         .map_or(0, |s| s.0)
                 })
                 .map_or(0, |s| s.0);
+            // Rule out any card that could move forwards with the maximum space we have
             for steps in 1..max_amount_between_balls {
                 if let Some(c) = Card::from_steps(steps) {
                     self.rule_out(c, player);
                 }
             }
         }
+        // TODO handle four
     }
 
     #[must_use]
     pub fn known_cards(&self, player: Color) -> Vec<Card> {
         let mut cards = Vec::new();
+        // TODO this check shouldnt be necessary
+        if player == self.observer {
+            return cards;
+        }
         for (card, knowledge) in self.hands[self.idx(player)] {
             match knowledge {
                 CardKnowledgeKind::Exact(x) => {
@@ -131,6 +188,10 @@ impl Knowledge {
     }
 
     pub fn rule_out(&mut self, card: Card, player: Color) {
+        // TODO this check shouldnt be necessary
+        if player == self.observer {
+            return;
+        }
         self.hands[self.idx(player)][card] = CardKnowledgeKind::Exact(0);
     }
 
@@ -181,5 +242,44 @@ impl Knowledge {
 
     fn idx(&self, player: Color) -> usize {
         self.observer.between(player)
+    }
+}
+
+impl std::fmt::Debug for Knowledge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{:?}", self.observer)?;
+        writeln!(f, "{:?}", self.announce)?;
+        for (idx, k) in self.hands.iter().enumerate() {
+            if idx == 0 {
+                write!(f, "next: ")?;
+            } else if idx == 1 {
+                write!(f, "part: ")?;
+            } else {
+                write!(f, "prev: ")?;
+            }
+            for v in k.values() {
+                if matches!(
+                    v,
+                    CardKnowledgeKind::Atmost(_) | CardKnowledgeKind::Exact(_)
+                ) {
+                    write!(f, "{v:?}, ")?;
+                }
+            }
+            writeln!(f)?;
+        }
+        writeln!(f, "{:?}", self.history)?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn announce() {
+        let board = Board::new_with_seed(1);
+        println!("{:?}", board);
+        let know = Knowledge::new_from_board(Color::Black, &board);
+        println!("{:?}", know);
     }
 }

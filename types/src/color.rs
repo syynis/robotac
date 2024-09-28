@@ -71,3 +71,16 @@ impl Color {
         res
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn between() {
+        for color in ALL_COLORS {
+            assert_eq!(color.between(color.next()), 0);
+            assert_eq!(color.between(color.prev()), 2);
+            assert_eq!(color.between(color.partner()), 1);
+        }
+    }
+}

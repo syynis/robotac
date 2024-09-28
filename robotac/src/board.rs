@@ -29,6 +29,8 @@ pub struct Board {
     jester_flag: bool,
     devil_flag: bool,
     trade_flag: bool,
+    started_flag: bool,
+    deck_fresh_flag: bool,
     deck: Deck,
     discarded: Vec<Card>,
     past_moves: ArrayDeque<(TacMove, Option<TacMoveResult>), PAST_MOVES_LEN, Wrapping>,
@@ -111,30 +113,8 @@ impl Board {
             jester_flag: false,
             devil_flag: false,
             trade_flag: false,
-            deck: Deck::default(),
-            discarded: Vec::new(),
-            past_moves: ArrayDeque::new(),
-            hands: [const { Vec::new() }; 4].map(Hand::new),
-            traded: [None; 4],
-            one_or_thirteen: [false; 4],
-            move_count: 0,
-            seed,
-        };
-
-        s.deal_new();
-        s
-    }
-    pub fn new_almost_done(seed: u64) -> Self {
-        let mut s = Self {
-            balls: [BitBoard::EMPTY; 4],
-            player_to_move: Color::Black,
-            homes: [Home(0b1110); 4],
-            base: [1; 4],
-            fresh: [true; 4],
-            discard_flag: false,
-            jester_flag: false,
-            devil_flag: false,
-            trade_flag: false,
+            started_flag: false,
+            deck_fresh_flag: false,
             deck: Deck::default(),
             discarded: Vec::new(),
             past_moves: ArrayDeque::new(),
@@ -209,7 +189,13 @@ impl Board {
     /// Removes color from square
     /// This is a wrapper around xor with an assert that the square is occupied by the color
     pub fn unset(&mut self, square: Square, color: Color) {
-        debug_assert!(self.color_on(square) == Some(color));
+        debug_assert!(
+            self.color_on(square) == Some(color),
+            "{:?} {:?} {:?}\n",
+            square,
+            color,
+            self.color_on(square),
+        );
         self.xor(square, color);
     }
 
@@ -282,10 +268,36 @@ impl Board {
         &self.hands[color as usize]
     }
 
-    /// Returns `true` if the previous player discarded a card.
+    /// Returns `true` if the current player is forced to discard a card.
     #[must_use]
     pub fn force_discard(&self) -> bool {
         self.discard_flag
+    }
+
+    /// Returns `true` if the previous player was forced to discarded a card.
+    #[must_use]
+    pub fn was_force_discard(&self) -> bool {
+        let len = self.past_moves.len();
+        // Last move discard and move before suspend
+        self.past_moves
+            .back()
+            .map_or(false, |(mv, _)| matches!(mv.action, TacAction::Discard))
+            && self
+                .past_moves
+                .get(len - 2)
+                .map_or(false, |(mv, _)| matches!(mv.action, TacAction::Suspend))
+    }
+
+    /// Returns `true` if new round start.
+    #[must_use]
+    pub fn just_started(&self) -> bool {
+        self.started_flag
+    }
+
+    /// Returns `true` if first round for deck.
+    #[must_use]
+    pub fn deck_fresh(&self) -> bool {
+        self.started_flag
     }
 
     /// Returns `true` if current player played jester and needs to play another card.
@@ -361,9 +373,14 @@ impl Board {
     pub fn play(&mut self, mv: &TacMove) {
         self.jester_flag = false;
         self.devil_flag = false;
+        self.started_flag = false;
+        self.deck_fresh_flag = false;
         let player = self.player_to_move;
         if matches!(mv.card, Card::Tac)
-            && !matches!(mv.action, TacAction::Discard | TacAction::Trade)
+            && !matches!(
+                mv.action,
+                TacAction::Discard | TacAction::Trade | TacAction::Jester
+            )
         {
             self.tac_undo();
         }
@@ -381,11 +398,12 @@ impl Board {
                 self.next_player();
             }
             self.past_moves.push_back((mv.clone(), captured));
-            // self.past_moves.push((mv.clone(), captured));
 
             if self.hands.iter().all(Hand::is_empty) {
+                debug_assert!(!self.discard_flag);
                 self.deal_new();
                 self.past_moves.clear();
+                self.discarded.clear();
                 self.next_player();
             }
         }
@@ -402,7 +420,7 @@ impl Board {
 
     pub fn apply_action(&mut self, action: TacAction, player: Color) -> Option<TacMoveResult> {
         match action {
-            TacAction::Step { from, to } | TacAction::Warrior { from, to } => {
+            TacAction::Step { from, to } => {
                 return self.move_ball(from, to, player).map(TacMoveResult::Capture)
             }
             TacAction::StepHome { from, to } => self.move_ball_in_goal(from, to, player),
@@ -455,6 +473,12 @@ impl Board {
                 }
                 return Some(TacMoveResult::SevenCaptures(res));
             }
+            TacAction::Warrior { from, to } => {
+                if from == to {
+                    return self.capture(from).map(TacMoveResult::Capture);
+                }
+                return self.move_ball(from, to, player).map(TacMoveResult::Capture);
+            }
             TacAction::Trade => {}
         }
         None
@@ -506,12 +530,11 @@ impl Board {
                 }
             }
             TacAction::AngelEnter => {
-                let next = player.next();
-                self.unset(next.home(), next);
-                self.base[next as usize] += 1;
+                self.unset(player.home(), player);
+                self.base[player as usize] += 1;
                 if let Some(TacMoveResult::Capture(captured)) = captured {
                     self.base[captured as usize] -= 1;
-                    self.set(next.home(), captured);
+                    self.set(player.home(), captured);
                 }
             }
             TacAction::SevenSteps { steps } => {
@@ -550,11 +573,20 @@ impl Board {
 
     /// Undo last move played according
     pub fn tac_undo(&mut self) {
-        let (mv, captured) = self
-            .past_moves
-            .pop_back() // Pop here so recursive tac works
-            .expect("Undo only ever called with past_moves non-empty");
+        // TODO this doesnt handle skipping jester if it wasnt discarded
+        let mut stored = Vec::new();
+        while let Some((mv, captured)) = self.past_moves.pop_back() {
+            stored.push((mv.clone(), captured));
+            if !(matches!(mv.action, TacAction::Jester)) {
+                break;
+            }
+        }
+        // let (mv, captured) = self
+        //     .past_moves
+        //     .pop_back() // Pop here so recursive tac works
+        //     .expect("Undo only ever called with past_moves non-empty");
         // TODO handle play for here
+        let (mv, captured) = stored.last().unwrap().clone();
         self.undo_action(mv.action.clone(), mv.played_for, captured.clone());
         if matches!(mv.card, Card::Tac) {
             self.tac_undo_recursive(
@@ -563,7 +595,9 @@ impl Board {
             );
         }
         // Push back when we are done
-        self.past_moves.push_back((mv, captured));
+        for e in stored {
+            self.past_moves.push_back(e);
+        }
     }
 
     fn tac_undo_recursive(&mut self, redo: Option<bool>, player: Color) {
@@ -624,7 +658,7 @@ impl Board {
         debug_assert!(self.hands.iter().all(Hand::is_empty));
         let mut rng = StdRng::seed_from_u64(self.seed);
         let dealt_cards = self.deck.deal(&mut rng);
-
+        self.deck_fresh_flag = self.deck.fresh();
         for set in dealt_cards.chunks_exact(4) {
             for (cidx, card) in set.iter().enumerate() {
                 self.hands[cidx].push(*card);
@@ -634,7 +668,8 @@ impl Board {
             .hands
             .clone()
             .map(|h| h.iter().any(|c| matches!(c, Card::One | Card::Thirteen)));
-        self.trade_flag = true;
+        self.started_flag = true;
+        self.begin_trade();
     }
 
     #[must_use]
@@ -653,6 +688,7 @@ impl Board {
 
     pub fn redetermine(&mut self, observer: Color, knowledge: &Knowledge) {
         let mut rng = rand::thread_rng();
+        let observer_hand = self.hand(observer).clone();
         // Store hand count first
         let amounts = ALL_COLORS
             .iter()
@@ -676,6 +712,7 @@ impl Board {
 
         // Draw cards equal to the amount put back
         for (player, amount) in amounts {
+            debug_assert!(player != observer);
             let hand = &mut self.hands[player as usize];
             (0..amount).for_each(|_| {
                 hand.push(self.deck.draw_one(&mut rng));
@@ -685,6 +722,15 @@ impl Board {
             }
             debug_assert!(hand.amount() == amount + knowledge.known_cards(player).len());
         }
+        debug_assert!(self
+            .hand(observer)
+            .iter()
+            .all(|c| { observer_hand.iter().any(|c2| c2 == c) }));
+    }
+
+    #[must_use]
+    pub fn announce(&self) -> [bool; 4] {
+        self.one_or_thirteen
     }
 
     #[cfg(test)]
@@ -733,6 +779,10 @@ impl std::fmt::Debug for Board {
         write!(f, "\npast_moves:\n")?;
         for (mv, captured) in &self.past_moves {
             writeln!(f, "{mv}, {captured:?}")?;
+        }
+        write!(f, "\ndiscarded:\n")?;
+        for c in &self.discarded {
+            writeln!(f, "{c:?}")?;
         }
         writeln!(f)?;
         writeln!(

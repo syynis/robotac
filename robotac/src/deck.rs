@@ -80,4 +80,8 @@ impl Deck {
         *amount -= 1;
         *card
     }
+
+    pub fn fresh(&self) -> bool {
+        self.times_dealt == 1
+    }
 }

@@ -1,34 +1,35 @@
-use std::io;
+use std::time::Instant;
 
-use itertools::Itertools;
-use robotac::board::Board;
+use mcts::{manager::Manager, policies::UCTPolicy};
+use robotac::{board::Board, TacAI, TacEval};
 
 fn main() {
-    let mut board = Board::new_with_seed(0);
-    let mut input = String::new();
-    println!("{:?}", board);
-    for (idx, mv) in board.get_moves(board.current_player()).iter().enumerate() {
-        println!("{} {:?}", idx, mv);
+    let mut mcts = Manager::new(Board::new_with_seed(0), TacAI, UCTPolicy(7.0), TacEval);
+    println!("{:?}", mcts.tree().root_state());
+
+    let before = Instant::now();
+    // mcts.playout_n(500_000);
+    mcts.playout_n_parallel(5_000_000, 8);
+    let after = Instant::now();
+    println!("playout in {}", (after - before).as_secs_f32());
+    if let Some(best_move) = mcts.best_move() {
+        mcts.print_root_legal_moves();
+        println!("Make move {:?}", best_move);
+        mcts.advance(&best_move);
     }
-    loop {
-        if io::stdin().read_line(&mut input).is_ok() {
-            let i = input.strip_suffix('\n').unwrap().to_owned();
-            if let Ok(number) = i.parse::<usize>() {
-                let moves = board.get_moves(board.current_player());
-                board.play(&moves[number]);
-                let hand = board.hand(board.current_player());
-                println!("{:?}", hand);
-                for (idx, mv) in board.get_moves(board.current_player()).iter().enumerate() {
-                    println!("{} {:?}", idx, mv);
-                }
-            } else if i == "state" {
-                println!("{:?}", board);
-            } else if i == "moves" {
-                for (idx, mv) in board.get_moves(board.current_player()).iter().enumerate() {
-                    println!("{} {:?}", idx, mv);
-                }
-            }
-            input.clear();
-        }
+    if let Some(best_move) = mcts.best_move() {
+        mcts.print_root_legal_moves();
+        println!("Make move {:?}", best_move);
+        mcts.advance(&best_move);
+    }
+    if let Some(best_move) = mcts.best_move() {
+        mcts.print_root_legal_moves();
+        println!("Make move {:?}", best_move);
+        mcts.advance(&best_move);
+    }
+    if let Some(best_move) = mcts.best_move() {
+        mcts.print_root_legal_moves();
+        println!("Make move {:?}", best_move);
+        mcts.advance(&best_move);
     }
 }
