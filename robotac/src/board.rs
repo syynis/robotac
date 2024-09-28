@@ -298,7 +298,7 @@ impl Board {
     /// Returns `true` if first round for deck.
     #[must_use]
     pub fn deck_fresh(&self) -> bool {
-        self.started_flag
+        self.deck_fresh_flag
     }
 
     /// Returns `true` if current player played jester and needs to play another card.

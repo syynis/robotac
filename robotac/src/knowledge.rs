@@ -103,13 +103,16 @@ impl Knowledge {
             return;
         }
 
-        let player = board.play_for(board.current_player());
+        let player = board.play_for(board.current_player()).prev();
         // If partner plays card we traded away, don't update history because it is already accounted for
         if let Some(traded) = self.traded_away {
-            if traded == mv.card && self.observer.partner() == player.prev() {
+            if traded == mv.card && self.observer.partner() == player {
                 self.traded_away.take();
+            } else if player != self.observer {
+                // Update history with card played
+                self.update_with_card(mv.card);
             }
-        } else {
+        } else if player != self.observer {
             // Update history with card played
             self.update_with_card(mv.card);
         }
@@ -118,15 +121,14 @@ impl Knowledge {
         // Previous player discard because they couldn't play anything
         if matches!(mv.action, tac_types::TacAction::Discard) && !board.was_force_discard() {
             if board.balls_with(player).is_empty() {
-                self.discarded_no_balls_in_play(board);
+                self.discarded_no_balls_in_play(board, player);
             } else {
-                self.discarded_balls_in_play(board, mv.card);
+                self.discarded_balls_in_play(board, mv.card, player);
             }
         }
     }
 
-    pub fn discarded_no_balls_in_play(&mut self, board: &Board) {
-        let player = board.current_player();
+    pub fn discarded_no_balls_in_play(&mut self, board: &Board, player: Color) {
         let home = *board.home(board.play_for(player));
         // All these can be played even with no balls in play
         self.rule_out(Card::One, player);
@@ -148,9 +150,8 @@ impl Knowledge {
         // TODO If previous played card satisfies any of the above, rule out tac aswell
     }
 
-    pub fn discarded_balls_in_play(&mut self, board: &Board, card: Card) {
-        self.discarded_no_balls_in_play(board);
-        let player = board.play_for(board.current_player());
+    pub fn discarded_balls_in_play(&mut self, board: &Board, card: Card, player: Color) {
+        self.discarded_no_balls_in_play(board, player);
         // Card is used to step forward
         if card.is_simple().is_some() {
             let ours = board.balls_with(player);
