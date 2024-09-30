@@ -749,6 +749,7 @@ name = "tac-types"
 version = "0.1.0"
 dependencies = [
  "enum-map",
+ "rand",
  "serde",
  "smallvec 2.0.0-alpha.6",
 ]

@@ -1,5 +1,5 @@
+use crate::Card;
 use smallvec::SmallVec;
-use tac_types::Card;
 
 #[derive(Clone, Debug)]
 pub struct Hand(pub SmallVec<Card, 6>);
@@ -27,8 +27,12 @@ impl Hand {
     /// # Panics
     /// If card is not in hand
     pub fn remove(&mut self, card: Card) {
-        self.0
-            .remove(self.0.iter().position(|x| *x == card).unwrap_or_else(|| panic!("We require the card to be in hand {card:?} {self:?}")));
+        self.0.remove(
+            self.0
+                .iter()
+                .position(|x| *x == card)
+                .unwrap_or_else(|| panic!("We require the card to be in hand {card:?} {self:?}")),
+        );
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Card> + '_ {

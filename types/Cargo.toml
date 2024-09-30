@@ -7,5 +7,6 @@ edition = "2021"
 enum-map = {workspace = true}
 smallvec = {workspace = true}
 serde = {workspace = true}
+rand = {workspace = true}
 
 [features]

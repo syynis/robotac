@@ -1,7 +1,7 @@
 use enum_map::EnumMap;
-use tac_types::{Card, Color, TacAction, TacMove, CARDS};
+use tac_types::{Card, Color, Hand, TacAction, TacMove, CARDS};
 
-use crate::{board::Board, hand::Hand};
+use crate::board::Board;
 
 #[derive(Clone, Copy)]
 pub struct Knowledge {
@@ -247,7 +247,9 @@ impl Knowledge {
     }
 
     pub fn update_with_card(&mut self, card: Card, player: Color) {
-        if player != self.observer {
+        if player == self.observer {
+            self.history[card] += 1;
+        } else {
             // If we know of an exact non-zero amount then history was already accounted for (jester / devil)
             if let CardKnowledgeKind::Exact(x) = self.hands[self.idx(player)][card] {
                 debug_assert!(x > 0);
@@ -255,8 +257,6 @@ impl Knowledge {
             } else {
                 self.history[card] += 1;
             }
-        } else {
-            self.history[card] += 1;
         }
     }
 

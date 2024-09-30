@@ -6,6 +6,8 @@
 pub mod bitboard;
 pub mod card;
 pub mod color;
+pub mod deck;
+pub mod hand;
 pub mod home;
 pub mod square;
 pub mod tacmove;
@@ -13,6 +15,8 @@ pub mod tacmove;
 pub use bitboard::*;
 pub use card::*;
 pub use color::*;
+pub use deck::*;
+pub use hand::*;
 pub use home::*;
 pub use square::*;
 pub use tacmove::*;

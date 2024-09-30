@@ -1,5 +1,5 @@
+use crate::{Card, NUM_CARDS};
 use rand::{seq::SliceRandom, Rng};
-use tac_types::{Card, NUM_CARDS};
 
 const DECK: [(Card, u8); NUM_CARDS] = {
     #[allow(clippy::enum_glob_use)]
@@ -71,6 +71,7 @@ impl Deck {
         self.cards[card as usize].1 += 1;
     }
 
+    #[allow(clippy::missing_panics_doc)]
     pub fn draw_one<R: Rng>(&mut self, rng: &mut R) -> Card {
         let (card, amount) = self
             .cards

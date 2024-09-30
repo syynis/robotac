@@ -10,9 +10,7 @@ use mcts::{policies::UCTPolicy, Evaluator, GameState, MCTS};
 use tac_types::{Color, TacMove};
 
 pub mod board;
-pub mod deck;
 pub mod eval;
-pub mod hand;
 pub mod history;
 pub mod knowledge;
 pub mod movegen;

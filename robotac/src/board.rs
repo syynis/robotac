@@ -9,10 +9,10 @@ use itertools::Itertools;
 use rand::{rngs::StdRng, SeedableRng};
 use smallvec::SmallVec;
 use tac_types::{
-    BitBoard, Card, Color, Home, Square, TacAction, TacMove, TacMoveResult, ALL_COLORS,
+    BitBoard, Card, Color, Deck, Hand, Home, Square, TacAction, TacMove, TacMoveResult, ALL_COLORS,
 };
 
-use crate::{deck::Deck, hand::Hand, knowledge::Knowledge};
+use crate::knowledge::Knowledge;
 
 // This is is choosen because the situation which needs the most lookup into past is:
 // Card - Jester - Tac - Tac - Tac - Tac - Tac
