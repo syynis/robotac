@@ -176,14 +176,12 @@ impl Board {
     }
 
     /// Toggles the state of a square for a given player.
-    #[inline(always)]
     pub(crate) fn xor(&mut self, square: Square, color: Color) {
         self.balls[color as usize] ^= square.bitboard();
     }
 
     /// Sets square to given color
     /// This is a wrapper around xor with an assert that the square is empty
-    #[inline(always)]
     pub fn set(&mut self, square: Square, color: Color) {
         debug_assert!(self.color_on(square).is_none());
         self.xor(square, color);
@@ -191,7 +189,6 @@ impl Board {
 
     /// Removes color from square
     /// This is a wrapper around xor with an assert that the square is occupied by the color
-    #[inline(always)]
     pub fn unset(&mut self, square: Square, color: Color) {
         debug_assert!(
             self.color_on(square) == Some(color),

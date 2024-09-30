@@ -90,8 +90,7 @@ impl Board {
                                 card: Card::Angel,
                                 action: e.action,
                                 played_for: play_for_next,
-                            })
-                            .collect_vec(),
+                            }),
                     );
                     moves.extend(
                         self.moves_for_card_squares(balls, play_for_next, Card::Thirteen)
@@ -100,8 +99,7 @@ impl Board {
                                 card: Card::Angel,
                                 action: e.action,
                                 played_for: play_for_next,
-                            })
-                            .collect_vec(),
+                            }),
                     );
                 }
                 return moves;
@@ -362,8 +360,7 @@ impl Board {
                 state
                     .moves_for_card(player, last_move.card)
                     .into_iter()
-                    .map(|m| TacMove::new(Card::Tac, m.action, player))
-                    .collect_vec(),
+                    .map(|m| TacMove::new(Card::Tac, m.action, player)),
             );
         }
 
