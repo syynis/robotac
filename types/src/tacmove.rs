@@ -18,7 +18,6 @@ pub enum TacAction {
     Devil,
     Warrior { from: Square, to: Square },
     Discard,
-    AngelEnter,
     Trade,
     SevenSteps { steps: Vec<TacAction> },
 }

@@ -81,7 +81,7 @@ impl Board {
             Card::Angel => {
                 // If player after us still has balls out of play
                 if self.num_base(play_for_next) > 0 {
-                    moves.push(TacMove::new(card, TacAction::AngelEnter, play_for_next));
+                    moves.push(TacMove::new(card, TacAction::Enter, play_for_next));
                 } else {
                     for ball in self.balls_with(play_for_next) {
                         moves.extend(

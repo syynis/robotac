@@ -176,12 +176,14 @@ impl Board {
     }
 
     /// Toggles the state of a square for a given player.
+    #[inline(always)]
     pub(crate) fn xor(&mut self, square: Square, color: Color) {
         self.balls[color as usize] ^= square.bitboard();
     }
 
     /// Sets square to given color
     /// This is a wrapper around xor with an assert that the square is empty
+    #[inline(always)]
     pub fn set(&mut self, square: Square, color: Color) {
         debug_assert!(self.color_on(square).is_none());
         self.xor(square, color);
@@ -189,6 +191,7 @@ impl Board {
 
     /// Removes color from square
     /// This is a wrapper around xor with an assert that the square is occupied by the color
+    #[inline(always)]
     pub fn unset(&mut self, square: Square, color: Color) {
         debug_assert!(
             self.color_on(square) == Some(color),
@@ -433,9 +436,7 @@ impl Board {
             TacAction::StepHome { from, to } => self.move_ball_in_goal(from, to, player),
             TacAction::StepInHome { from, to } => self.move_ball_to_goal(from, to, player),
             TacAction::Trickster { target1, target2 } => self.swap_balls(target1, target2),
-            TacAction::Enter | TacAction::AngelEnter => {
-                return self.put_ball_in_play(player).map(TacMoveResult::Capture)
-            }
+            TacAction::Enter => return self.put_ball_in_play(player).map(TacMoveResult::Capture),
             TacAction::Suspend => self.discard_flag = true,
             TacAction::Jester => {
                 self.jester_flag = true;
@@ -528,7 +529,7 @@ impl Board {
                 self.homes[player as usize].unset(to);
             }
             TacAction::Trickster { target1, target2 } => self.swap_balls(target1, target2),
-            TacAction::Enter | TacAction::AngelEnter => {
+            TacAction::Enter => {
                 self.unset(player.home(), player);
                 self.base[player as usize] += 1;
                 if let Some(TacMoveResult::Capture(captured)) = captured {
