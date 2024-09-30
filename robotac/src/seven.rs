@@ -68,7 +68,7 @@ impl Board {
             let board_budget = 7 - home_budget;
 
             let mut step_in_home_moves = Vec::new();
-            if home_budget % 2 == 0 {
+            if home_budget & 1 == 0 {
                 home_moves.push(Vec::new());
             }
             for home_mvs in &home_moves {
@@ -86,10 +86,10 @@ impl Board {
                     }
                 }
 
+                let new_home_free = new_home.free();
                 // Can enter home
                 if new_home.free() > 0 {
                     // Match on the number of free home squares for entry
-                    let new_home_free = new_home.free();
                     match new_home_free {
                         // Easy case. Budget is distance to home + 1
                         1 => {
@@ -165,7 +165,7 @@ impl Board {
                 match balls.len() {
                     0 => {
                         if remaining_budget == 0 {
-                            combinations.push(actions.clone());
+                            combinations.push(actions);
                         }
                     }
                     1 => {
@@ -282,7 +282,7 @@ fn get_home_moves_with_budget(home: Home, budget: u8) -> Vec<Vec<(u8, u8)>> {
         return moves;
     }
     let num_unlocked = unlocked.len();
-    let even_budget = budget % 2 == 0;
+    let even_budget = budget & 1 == 0;
     // Try to spend budget
     match num_unlocked {
         1 => match home.0 {

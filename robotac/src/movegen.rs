@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use tac_types::{Card, Color, Home, Square, TacAction, TacMove};
+use tac_types::{BitBoard, Card, Color, Home, Square, TacAction, TacMove};
 
 use crate::board::Board;
 
@@ -47,8 +47,8 @@ impl Board {
     pub fn moves_for_card(&self, player: Color, card: Card) -> Vec<TacMove> {
         let play_for = self.play_for(player);
         let play_for_next = self.play_for(player.next());
+        let can_play = self.can_play(play_for);
         let mut moves = Vec::new();
-
         match card {
             Card::One | Card::Thirteen => {
                 // If we still have balls in base, we can put them on the board
@@ -59,59 +59,58 @@ impl Board {
             Card::Seven => {
                 // NOTE The number of possible seven moves scales extremely unwell for 3 (~7^2) and 4 (~7^3) moveable balls
                 // Consider special casing them so move evaluation can prune them effectively with expert knowledge
-                if (!self.home(play_for).is_empty() && !self.home(play_for).is_locked())
-                    || self.can_play(play_for)
+                if (!self.home(play_for).is_empty() && !self.home(play_for).is_locked()) || can_play
                 {
-                    moves.extend(self.seven_moves(play_for));
+                    return self.seven_moves(play_for);
                 }
             }
             Card::Eight => {
-                if self.can_play(play_for) && !self.hand(player.next()).is_empty() {
+                if can_play && !self.hand(player.next()).is_empty() {
                     moves.push(TacMove::new(card, TacAction::Suspend, player));
                 }
             }
             Card::Trickster => {
-                if self.can_play(play_for) {
-                    moves.extend(self.trickster_moves(play_for));
+                if can_play {
+                    return self.trickster_moves(play_for);
                 }
             }
             Card::Jester => {
-                moves.push(TacMove::new(card, TacAction::Jester, player));
+                return vec![TacMove::new(card, TacAction::Jester, player)];
             }
             Card::Angel => {
                 // If player after us still has balls out of play
                 if self.num_base(play_for_next) > 0 {
                     moves.push(TacMove::new(card, TacAction::Enter, play_for_next));
                 } else {
-                    for ball in self.balls_with(play_for_next) {
-                        moves.extend(
-                            self.moves_for_card_square(ball, play_for_next, Card::One)
-                                .into_iter()
-                                .map(|e| TacMove {
-                                    card: Card::Angel,
-                                    action: e.action,
-                                    played_for: play_for_next,
-                                })
-                                .collect_vec(),
-                        );
-                        moves.extend(
-                            self.moves_for_card_square(ball, play_for_next, Card::Thirteen)
-                                .into_iter()
-                                .map(|e| TacMove {
-                                    card: Card::Angel,
-                                    action: e.action,
-                                    played_for: play_for_next,
-                                })
-                                .collect_vec(),
-                        );
-                    }
+                    let balls = self.balls_with(play_for_next);
+                    moves.extend(
+                        self.moves_for_card_squares(balls, play_for_next, Card::One)
+                            .into_iter()
+                            .map(|e| TacMove {
+                                card: Card::Angel,
+                                action: e.action,
+                                played_for: play_for_next,
+                            })
+                            .collect_vec(),
+                    );
+                    moves.extend(
+                        self.moves_for_card_squares(balls, play_for_next, Card::Thirteen)
+                            .into_iter()
+                            .map(|e| TacMove {
+                                card: Card::Angel,
+                                action: e.action,
+                                played_for: play_for_next,
+                            })
+                            .collect_vec(),
+                    );
                 }
+                return moves;
             }
             Card::Devil => {
-                moves.push(TacMove::new(card, TacAction::Devil, play_for));
+                return vec![TacMove::new(card, TacAction::Devil, play_for)];
             }
             Card::Tac => {
-                moves.extend(self.tac_moves(play_for));
+                return self.tac_moves(play_for);
             }
             _ => {}
         }
@@ -119,13 +118,14 @@ impl Board {
         // Moves for balls that are not locked in their home
         // Uses matching on the bit patterns that correspond to states in which there are unlocked balls
         // with enough space to move the desired amount
-        moves.extend(Self::home_moves_for(*self.home(play_for), play_for, card));
+        if !self.home(play_for).is_empty() && !self.home(play_for).is_locked() {
+            moves.extend(Self::home_moves_for(*self.home(play_for), play_for, card));
+        }
 
         // Moves we can only do with balls on the board
-        if self.can_play(play_for) {
-            for ball in self.balls_with(play_for) {
-                moves.extend(self.moves_for_card_square(ball, play_for, card));
-            }
+
+        if can_play {
+            moves.extend(self.moves_for_card_squares(self.balls_with(play_for), play_for, card));
         }
         moves
     }
@@ -133,154 +133,160 @@ impl Board {
     #[must_use]
     pub fn home_moves_for(home: Home, play_for: Color, card: Card) -> Vec<TacMove> {
         let mut moves = Vec::new();
-        if !home.is_locked() {
-            match card {
-                Card::One => match home.0 {
-                    0b0001 | 0b1001 | 0b1101 => moves.push(TacMove::new(
+        match card {
+            Card::One => match home.0 {
+                0b0001 | 0b1001 | 0b1101 => moves.push(TacMove::new(
+                    card,
+                    TacAction::StepHome { from: 0, to: 1 },
+                    play_for,
+                )),
+                0b0010 | 0b1010 | 0b0011 | 0b1011 => moves.push(TacMove::new(
+                    card,
+                    TacAction::StepHome { from: 1, to: 2 },
+                    play_for,
+                )),
+                0b0100 | 0b0110 | 0b0111 => moves.push(TacMove::new(
+                    card,
+                    TacAction::StepHome { from: 2, to: 3 },
+                    play_for,
+                )),
+                0b0101 => {
+                    moves.push(TacMove::new(
                         card,
                         TacAction::StepHome { from: 0, to: 1 },
                         play_for,
-                    )),
-                    0b0010 | 0b1010 | 0b0011 | 0b1011 => moves.push(TacMove::new(
-                        card,
-                        TacAction::StepHome { from: 1, to: 2 },
-                        play_for,
-                    )),
-                    0b0100 | 0b0110 | 0b0111 => moves.push(TacMove::new(
+                    ));
+                    moves.push(TacMove::new(
                         card,
                         TacAction::StepHome { from: 2, to: 3 },
                         play_for,
-                    )),
-                    0b0101 => {
-                        moves.push(TacMove::new(
-                            card,
-                            TacAction::StepHome { from: 0, to: 1 },
-                            play_for,
-                        ));
-                        moves.push(TacMove::new(
-                            card,
-                            TacAction::StepHome { from: 2, to: 3 },
-                            play_for,
-                        ));
-                    }
-                    _ => {}
-                },
-                Card::Two => match home.0 {
-                    0b0001 | 0b1001 => {
-                        moves.push(TacMove::new(
-                            card,
-                            TacAction::StepHome { from: 0, to: 2 },
-                            play_for,
-                        ));
-                    }
-                    0b0010 | 0b0011 => {
-                        moves.push(TacMove::new(
-                            card,
-                            TacAction::StepHome { from: 1, to: 3 },
-                            play_for,
-                        ));
-                    }
-                    _ => {}
-                },
-                Card::Three => {
-                    if home.0 == 0b0001 {
-                        moves.push(TacMove::new(
-                            card,
-                            TacAction::StepHome { from: 0, to: 3 },
-                            play_for,
-                        ));
-                    }
+                    ));
                 }
                 _ => {}
+            },
+            Card::Two => match home.0 {
+                0b0001 | 0b1001 => {
+                    moves.push(TacMove::new(
+                        card,
+                        TacAction::StepHome { from: 0, to: 2 },
+                        play_for,
+                    ));
+                }
+                0b0010 | 0b0011 => {
+                    moves.push(TacMove::new(
+                        card,
+                        TacAction::StepHome { from: 1, to: 3 },
+                        play_for,
+                    ));
+                }
+                _ => {}
+            },
+            Card::Three => {
+                if home.0 == 0b0001 {
+                    moves.push(TacMove::new(
+                        card,
+                        TacAction::StepHome { from: 0, to: 3 },
+                        play_for,
+                    ));
+                }
             }
+            _ => {}
         }
         moves
     }
 
     #[must_use]
-    pub fn moves_for_card_square(&self, start: Square, color: Color, card: Card) -> Vec<TacMove> {
+    pub fn moves_for_card_squares(
+        &self,
+        squares: BitBoard,
+        color: Color,
+        card: Card,
+    ) -> Vec<TacMove> {
         let mut moves = Vec::new();
-
-        // Simple forward movement
-        if let Some(amount) = card.is_simple() {
-            if self.can_move(start, start.add(amount)) {
-                moves.push(TacMove::new(
-                    card,
-                    TacAction::Step {
-                        from: start,
-                        to: start.add(amount),
-                    },
-                    color,
-                ));
-            }
-            // Need to add here in case there is ball on home square
-            if start.distance_to_home(color) < amount && self.can_move(start, color.home().add(1)) {
-                // TODO Compute the range of possible value to reach the home beforehand, to reduce computation
-                if let Some(goal_pos) = self.position_in_home(start, amount, color) {
-                    moves.push(TacMove::new(
-                        card,
-                        TacAction::StepInHome {
-                            from: start,
-                            to: goal_pos,
-                        },
-                        color,
-                    ));
-                }
-            }
-        }
-
-        match card {
-            Card::Four => {
-                // Each of the four positions behind us are not occupied
-                if (1..5).all(|i| !self.occupied(start.sub(i))) {
+        for start in squares {
+            // Simple forward movement
+            if let Some(amount) = card.is_simple() {
+                if self.can_move(start, start.add(amount)) {
                     moves.push(TacMove::new(
                         card,
                         TacAction::Step {
                             from: start,
-                            to: start.add(60),
+                            to: start.add(amount),
                         },
                         color,
                     ));
                 }
+                // Need to add here in case there is ball on home square
+                if start.distance_to_home(color) < amount
+                    && self.can_move(start, color.home().add(1))
+                {
+                    // TODO Compute the range of possible value to reach the home beforehand, to reduce computation
+                    if let Some(goal_pos) = self.position_in_home(start, amount, color) {
+                        moves.push(TacMove::new(
+                            card,
+                            TacAction::StepInHome {
+                                from: start,
+                                to: goal_pos,
+                            },
+                            color,
+                        ));
+                    }
+                }
+            }
 
-                // Minimum reverse dist to goal
-                let min_rev_dist = 64 - start.distance_to_home(color) + 1;
-                let free = self.home(color).free();
+            match card {
+                Card::Four => {
+                    // Each of the four positions behind us are not occupied
+                    if (1..5).all(|i| !self.occupied(start.sub(i))) {
+                        moves.push(TacMove::new(
+                            card,
+                            TacAction::Step {
+                                from: start,
+                                to: start.add(60),
+                            },
+                            color,
+                        ));
+                    }
 
-                // We are right infront of goal and moved in some way after entering play before
-                if min_rev_dist == 65 && free == 4 && !self.fresh(color) {
-                    moves.push(TacMove::new(
-                        card,
-                        TacAction::StepInHome { from: start, to: 4 },
-                        color,
-                    ));
-                } else if free > 0 // Goal needs to be free
+                    // Minimum reverse dist to goal
+                    let min_rev_dist = 64 - start.distance_to_home(color) + 1;
+                    let free = self.home(color).free();
+
+                    // We are right infront of goal and moved in some way after entering play before
+                    if min_rev_dist == 65 && free == 4 && !self.fresh(color) {
+                        moves.push(TacMove::new(
+                            card,
+                            TacAction::StepInHome { from: start, to: 4 },
+                            color,
+                        ));
+                    } else if free > 0 // Goal needs to be free
                     && min_rev_dist + free > 4 // Enough space to move in
                     && (2..=4).contains(&min_rev_dist) // In range to move in home
                     && (0..min_rev_dist - 1).all(|i| !self.occupied(color.home().add(i)))
-                {
-                    let goal = 4 - min_rev_dist;
+                    {
+                        let goal = 4 - min_rev_dist;
+                        moves.push(TacMove::new(
+                            card,
+                            TacAction::StepInHome {
+                                from: start,
+                                to: goal,
+                            },
+                            color,
+                        ));
+                    }
+                }
+                Card::Warrior => {
                     moves.push(TacMove::new(
                         card,
-                        TacAction::StepInHome {
+                        TacAction::Warrior {
                             from: start,
-                            to: goal,
+                            to: self.warrior_target(start, color),
                         },
                         color,
                     ));
                 }
+                _ => {}
             }
-            Card::Warrior => {
-                moves.push(TacMove::new(
-                    card,
-                    TacAction::Warrior {
-                        from: start,
-                        to: self.warrior_target(start, color),
-                    },
-                    color,
-                ));
-            }
-            _ => {}
         }
         moves
     }
@@ -355,8 +361,8 @@ impl Board {
             moves.extend(
                 state
                     .moves_for_card(player, last_move.card)
-                    .iter()
-                    .map(|m| TacMove::new(Card::Tac, m.action.clone(), player))
+                    .into_iter()
+                    .map(|m| TacMove::new(Card::Tac, m.action, player))
                     .collect_vec(),
             );
         }
@@ -413,7 +419,7 @@ mod tests {
     fn four() {
         let mut board = Board::new();
         board.put_ball_in_play(Color::Black);
-        let moves = board.moves_for_card_square(Square(0), Color::Black, Card::Four);
+        let moves = board.moves_for_card_squares(Square(0).bitboard(), Color::Black, Card::Four);
         assert_eq!(moves.len(), 1);
         assert_eq!(
             moves[0],
@@ -428,7 +434,7 @@ mod tests {
         );
         board.move_ball(Square(0), Square(4), Color::Black);
         assert_eq!(board.color_on(Square(4)), Some(Color::Black));
-        let moves = board.moves_for_card_square(Square(4), Color::Black, Card::Four);
+        let moves = board.moves_for_card_squares(Square(4).bitboard(), Color::Black, Card::Four);
         assert_eq!(moves.len(), 1);
         assert_eq!(
             moves[0],
@@ -450,7 +456,7 @@ mod tests {
         board.put_ball_in_play(black);
         board.move_ball(Square(0), Square(1), black);
         board.apply_action(
-            board.moves_for_card_square(Square(1), black, Card::Four)[1]
+            board.moves_for_card_squares(Square(1).bitboard(), black, Card::Four)[1]
                 .action
                 .clone(),
             black,
@@ -463,13 +469,13 @@ mod tests {
         board.move_ball(Square(0), Square(1), black);
         assert_eq!(
             board
-                .moves_for_card_square(Square(1), black, Card::Four)
+                .moves_for_card_squares(Square(1).bitboard(), black, Card::Four)
                 .len(),
             1
         );
         board.move_ball(Square(1), Square(3), black);
         board.apply_action(
-            board.moves_for_card_square(Square(3), black, Card::Four)[1]
+            board.moves_for_card_squares(Square(3).bitboard(), black, Card::Four)[1]
                 .action
                 .clone(),
             black,

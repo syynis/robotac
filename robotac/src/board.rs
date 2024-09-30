@@ -237,8 +237,8 @@ impl Board {
     #[must_use]
     pub fn all_balls(&self) -> BitBoard {
         ALL_COLORS
-            .iter()
-            .fold(BitBoard::EMPTY, |acc, color| acc | self.balls_with(*color))
+            .into_iter()
+            .fold(BitBoard::EMPTY, |acc, color| acc | self.balls_with(color))
     }
 
     /// Returns a `BitBoard` representing the balls of a given player.
@@ -602,7 +602,7 @@ impl Board {
         //     .pop_back() // Pop here so recursive tac works
         //     .expect("Undo only ever called with past_moves non-empty");
         // TODO handle play for here
-        let (mv, captured) = stored.last().unwrap().clone();
+        let (mv, captured) = stored.last().unwrap();
         self.undo_action(mv.action.clone(), mv.played_for, captured.clone());
         if matches!(mv.card, Card::Tac) {
             self.tac_undo_recursive(
@@ -707,11 +707,11 @@ impl Board {
         let observer_hand = self.hand(observer).clone();
         // Store hand count first
         let amounts = ALL_COLORS
-            .iter()
+            .into_iter()
             .filter_map(|player| {
-                (*player != observer).then_some((
-                    *player,
-                    self.hand(*player).amount() - knowledge.known_cards(*player).len(),
+                (player != observer).then_some((
+                    player,
+                    self.hand(player).amount() - knowledge.known_cards(player).len(),
                 ))
             })
             .collect_vec();

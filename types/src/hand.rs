@@ -11,15 +11,18 @@ impl Hand {
     }
 
     #[must_use]
+    #[inline(always)]
     pub fn amount(&self) -> usize {
         self.0.len()
     }
 
     #[must_use]
+    #[inline(always)]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
+    #[inline(always)]
     pub fn push(&mut self, card: Card) {
         self.0.push(card);
     }
@@ -27,7 +30,7 @@ impl Hand {
     /// # Panics
     /// If card is not in hand
     pub fn remove(&mut self, card: Card) {
-        self.0.remove(
+        self.0.swap_remove(
             self.0
                 .iter()
                 .position(|x| *x == card)
@@ -35,6 +38,7 @@ impl Hand {
         );
     }
 
+    #[inline(always)]
     pub fn iter(&self) -> impl Iterator<Item = &Card> + '_ {
         self.0.iter()
     }
