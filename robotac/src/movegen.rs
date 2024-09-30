@@ -86,20 +86,20 @@ impl Board {
                     for ball in self.balls_with(play_for_next) {
                         moves.extend(
                             self.moves_for_card_square(ball, play_for_next, Card::One)
-                                .iter()
+                                .into_iter()
                                 .map(|e| TacMove {
                                     card: Card::Angel,
-                                    action: e.action.clone(),
+                                    action: e.action,
                                     played_for: play_for_next,
                                 })
                                 .collect_vec(),
                         );
                         moves.extend(
                             self.moves_for_card_square(ball, play_for_next, Card::Thirteen)
-                                .iter()
+                                .into_iter()
                                 .map(|e| TacMove {
                                     card: Card::Angel,
-                                    action: e.action.clone(),
+                                    action: e.action,
                                     played_for: play_for_next,
                                 })
                                 .collect_vec(),

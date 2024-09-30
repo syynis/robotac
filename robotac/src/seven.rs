@@ -46,10 +46,10 @@ impl Board {
             // Get all possiblities of moving balls in home with the given budget
             let mut home_moves = if home_budget != 0 {
                 get_home_moves_with_budget(home, home_budget)
-                    .iter()
+                    .into_iter()
                     .map(|hm| {
-                        hm.iter()
-                            .map(|&(from, to)| TacAction::StepHome { from, to })
+                        hm.into_iter()
+                            .map(|(from, to)| TacAction::StepHome { from, to })
                             .collect_vec()
                     })
                     .collect_vec()
@@ -59,14 +59,8 @@ impl Board {
 
             // If our budget is entirely for home moves don't check for ring moves
             if home_budget == 7 {
-                moves.extend(home_moves.iter().map(|steps| {
-                    TacMove::new(
-                        Card::Seven,
-                        TacAction::SevenSteps {
-                            steps: steps.clone(),
-                        },
-                        player,
-                    )
+                moves.extend(home_moves.into_iter().map(|steps| {
+                    TacMove::new(Card::Seven, TacAction::SevenSteps { steps }, player)
                 }));
                 return moves;
             }
@@ -270,15 +264,11 @@ impl Board {
                 }
             }
 
-            moves.extend(combinations.iter().map(|steps| {
-                TacMove::new(
-                    Card::Seven,
-                    TacAction::SevenSteps {
-                        steps: steps.clone(),
-                    },
-                    player,
-                )
-            }));
+            moves.extend(
+                combinations.into_iter().map(|steps| {
+                    TacMove::new(Card::Seven, TacAction::SevenSteps { steps }, player)
+                }),
+            );
         }
         moves
     }
