@@ -37,7 +37,7 @@ impl Knowledge {
     #[must_use]
     pub fn new_from_board(observer: Color, board: &Board) -> Self {
         let mut res = Self::new(observer);
-        res.update_with_hand(board.hand(observer));
+        res.update_with_hand(board.hand(observer), observer);
         if board.just_started() {
             res.hands = [EnumMap::default(); 3];
             let openings = board.openings();
@@ -84,7 +84,7 @@ impl Knowledge {
                 self.history = EnumMap::default();
             }
             self.hands = [EnumMap::default(); 3];
-            self.update_with_hand(board.hand(self.observer));
+            self.update_with_hand(board.hand(self.observer), self.observer);
             let announce = board.openings();
             let announce_without_observer = [
                 announce[self.observer.next() as usize],
@@ -96,7 +96,7 @@ impl Knowledge {
         if matches!(mv.action, TacAction::Trade) {
             if mv.played_for == self.observer.partner() {
                 self.got_traded = Some(mv.card);
-                self.update_with_card(mv.card);
+                self.history[mv.card] += 1;
             } else if mv.played_for == self.observer {
                 self.traded_away = Some(mv.card);
             }
@@ -108,22 +108,53 @@ impl Knowledge {
         if let Some(traded) = self.traded_away {
             if traded == mv.card && self.observer.partner() == player {
                 self.traded_away.take();
-            } else if player != self.observer {
+            } else {
                 // Update history with card played
-                self.update_with_card(mv.card);
+                self.update_with_card(mv.card, player);
             }
-        } else if player != self.observer {
+        } else {
             // Update history with card played
-            self.update_with_card(mv.card);
+            self.update_with_card(mv.card, player);
         }
         // Check which cards can still be in the deck
         self.sync();
         // Previous player discard because they couldn't play anything
         if matches!(mv.action, tac_types::TacAction::Discard) && !board.was_force_discard() {
-            if board.balls_with(player).is_empty() {
-                self.discarded_no_balls_in_play(board, player);
-            } else {
+            self.discarded_no_balls_in_play(board, player);
+            if !board.balls_with(player).is_empty() {
                 self.discarded_balls_in_play(board, mv.card, player);
+            }
+        }
+
+        if matches!(mv.action, TacAction::Devil) && mv.played_for == self.observer {
+            let next = mv.played_for.next();
+            let hand = board.hand(next);
+            self.update_with_hand(hand, next);
+            self.hands[0] = EnumMap::default();
+            for c in hand.iter() {
+                match self.hands[0][*c] {
+                    CardKnowledgeKind::Unknown => CardKnowledgeKind::Exact(1),
+                    CardKnowledgeKind::Exact(x) => CardKnowledgeKind::Exact(x + 1),
+                    CardKnowledgeKind::Atmost(_) => unreachable!(),
+                };
+            }
+        }
+
+        if matches!(mv.action, TacAction::Jester) {
+            // TODO how to handle knowledge about traded card if it didnt get played yet
+            // We have hand from player after us. Update new information we got
+            self.update_with_hand(board.hand(self.observer), self.observer.next());
+            // Apply rotation for hand knowledge
+            self.hands.rotate_left(1);
+            // Our hand is already the hand from the player after us before jester
+            // So we know every card in it
+            self.hands[2] = EnumMap::default();
+            for c in board.hand(self.observer.prev()).iter() {
+                match self.hands[2][*c] {
+                    CardKnowledgeKind::Unknown => CardKnowledgeKind::Exact(1),
+                    CardKnowledgeKind::Exact(x) => CardKnowledgeKind::Exact(x + 1),
+                    CardKnowledgeKind::Atmost(_) => unreachable!(),
+                };
             }
         }
     }
@@ -151,7 +182,6 @@ impl Knowledge {
     }
 
     pub fn discarded_balls_in_play(&mut self, board: &Board, card: Card, player: Color) {
-        self.discarded_no_balls_in_play(board, player);
         // Card is used to step forward
         if card.is_simple().is_some() {
             let ours = board.balls_with(player);
@@ -216,15 +246,23 @@ impl Knowledge {
         self.hands[self.idx(player)][card] = CardKnowledgeKind::Exact(amount);
     }
 
-    /// This doesnt check if the card was already accounted for in `update_with_hand`
-    pub fn update_with_card(&mut self, card: Card) {
-        self.history[card] += 1;
+    pub fn update_with_card(&mut self, card: Card, player: Color) {
+        if player != self.observer {
+            // If we know of an exact non-zero amount then history was already accounted for (jester / devil)
+            if let CardKnowledgeKind::Exact(x) = self.hands[self.idx(player)][card] {
+                debug_assert!(x > 0);
+                self.hands[self.idx(player)][card] = CardKnowledgeKind::Exact(x - 1);
+            } else {
+                self.history[card] += 1;
+            }
+        } else {
+            self.history[card] += 1;
+        }
     }
 
-    pub fn update_with_hand(&mut self, hand: &Hand) {
-        hand.iter().for_each(|card| {
-            self.history[*card] += 1;
-        });
+    pub fn update_with_hand(&mut self, hand: &Hand, player: Color) {
+        hand.iter()
+            .for_each(|card| self.update_with_card(*card, player));
     }
 
     pub fn sync(&mut self) {
@@ -247,6 +285,7 @@ impl Knowledge {
         self.history.clear();
     }
 
+    #[must_use]
     fn idx(&self, player: Color) -> usize {
         self.observer.between(player)
     }
