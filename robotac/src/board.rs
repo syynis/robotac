@@ -706,6 +706,7 @@ impl Board {
         let amounts = ALL_COLORS
             .into_iter()
             .filter_map(|player| {
+                debug_assert!(self.hand(player).amount() >= knowledge.known_cards(player).len());
                 (player != observer).then_some((
                     player,
                     self.hand(player).amount() - knowledge.known_cards(player).len(),
@@ -724,14 +725,21 @@ impl Board {
         }
 
         // Draw cards equal to the amount put back
+        // TODO handle at most -> if we drew atmost amount already put back if we draw
         for (player, amount) in amounts {
             debug_assert!(player != observer);
             let hand = &mut self.hands[player as usize];
+            let known = knowledge.known_cards(player);
             (0..amount).for_each(|_| {
-                hand.push(self.deck.draw_one(&mut rng));
+                let mut drawn = self.deck.draw_one(&mut rng);
+                while known.iter().any(|c| *c == drawn) {
+                    self.deck.put_back(drawn);
+                    drawn = self.deck.draw_one(&mut rng);
+                }
+                hand.push(drawn);
             });
-            for known in knowledge.known_cards(player) {
-                hand.push(known);
+            for card in known {
+                hand.push(card);
             }
             debug_assert!(hand.amount() == amount + knowledge.known_cards(player).len());
         }

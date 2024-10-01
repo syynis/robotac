@@ -69,6 +69,7 @@ impl Deck {
 
     pub fn put_back(&mut self, card: Card) {
         self.cards[card as usize].1 += 1;
+        debug_assert!(self.cards[card as usize].1 <= card.amount());
     }
 
     #[allow(clippy::missing_panics_doc)]

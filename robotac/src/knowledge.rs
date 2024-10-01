@@ -99,6 +99,9 @@ impl Knowledge {
                 self.history[mv.card] += 1;
             } else if mv.played_for == self.observer {
                 self.traded_away = Some(mv.card);
+                if let CardKnowledgeKind::Exact(x) = self.hands[1][mv.card] {
+                    self.hands[1][mv.card] = CardKnowledgeKind::Exact(x + 1);
+                }
             }
             return;
         }
@@ -232,16 +235,6 @@ impl Knowledge {
         self.hands[self.idx(player)][card] = CardKnowledgeKind::Exact(0);
     }
 
-    pub fn make_exact(&mut self, card: Card, player: Color) {
-        let x = &mut self.hands[self.idx(player)][card];
-        *x = match x {
-            CardKnowledgeKind::Unknown => CardKnowledgeKind::Unknown,
-            CardKnowledgeKind::Exact(x) | CardKnowledgeKind::Atmost(x) => {
-                CardKnowledgeKind::Exact(*x)
-            }
-        }
-    }
-
     pub fn set_exact(&mut self, card: Card, player: Color, amount: u8) {
         self.hands[self.idx(player)][card] = CardKnowledgeKind::Exact(amount);
     }
@@ -251,11 +244,21 @@ impl Knowledge {
             self.history[card] += 1;
         } else {
             // If we know of an exact non-zero amount then history was already accounted for (jester / devil)
-            if let CardKnowledgeKind::Exact(x) = self.hands[self.idx(player)][card] {
-                debug_assert!(x > 0);
-                self.hands[self.idx(player)][card] = CardKnowledgeKind::Exact(x - 1);
-            } else {
-                self.history[card] += 1;
+            match self.hands[self.idx(player)][card] {
+                CardKnowledgeKind::Unknown => self.history[card] += 1,
+                CardKnowledgeKind::Atmost(1) => {
+                    self.history[card] += 1;
+                    self.set_exact(card, player, 0);
+                }
+                CardKnowledgeKind::Atmost(x) => {
+                    debug_assert!(x > 0);
+                    self.history[card] += 1;
+                    self.hands[self.idx(player)][card] = CardKnowledgeKind::Atmost(x - 1);
+                }
+                CardKnowledgeKind::Exact(x) => {
+                    debug_assert!(x > 0);
+                    self.set_exact(card, player, x - 1);
+                }
             }
         }
     }
