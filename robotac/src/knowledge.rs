@@ -142,6 +142,7 @@ impl Knowledge {
             && !board.force_discard()
             && mv.played_for != self.observer
         {
+            // TODO If able to tac previous move but discard instead, we know no tac in hand
             self.discarded_no_balls_in_play(board, player);
             if !board.balls_with(player).is_empty() {
                 self.discarded_balls_in_play(board, mv.card, player);
@@ -192,8 +193,11 @@ impl Knowledge {
     pub fn discarded_no_balls_in_play(&mut self, board: &Board, player: Color) {
         let home = *board.home(board.play_for(player));
         // All these can be played even with no balls in play
-        self.rule_out(Card::One, player);
-        self.rule_out(Card::Thirteen, player);
+        // One and thirteen also require for there to be balls inside base
+        if board.num_base(board.play_for(player)) > 0 {
+            self.rule_out(Card::One, player);
+            self.rule_out(Card::Thirteen, player);
+        }
         self.rule_out(Card::Devil, player);
         self.rule_out(Card::Jester, player);
         self.rule_out(Card::Angel, player);
@@ -201,14 +205,13 @@ impl Knowledge {
         if !(home.is_locked() || home.is_empty()) {
             // Seven can always be played with unlocked balls
             self.rule_out(Card::Seven, player);
-            for c in &[Card::Two, Card::Three] {
+            for c in &[Card::One, Card::Two, Card::Three] {
                 // If no moves available for two or three, rule out aswell
                 if !Board::home_moves_for(home, player, *c).is_empty() {
                     self.rule_out(*c, player);
                 }
             }
         }
-        // TODO If previous played card satisfies any of the above, rule out tac aswell
     }
 
     pub fn discarded_balls_in_play(&mut self, board: &Board, card: Card, player: Color) {
@@ -234,7 +237,13 @@ impl Knowledge {
                 }
             }
         }
-        // TODO handle four
+        // No four in hand if possible moves but not played
+        if !board
+            .moves_for_card_squares(board.balls_with(player), player, Card::Four)
+            .is_empty()
+        {
+            self.rule_out(Card::Four, player);
+        }
     }
 
     #[must_use]
@@ -357,19 +366,19 @@ mod tests {
     #[test]
     fn announce() {
         // 2 -> jester
-        let mut board = Board::new_with_seed(2);
-        let mut rng = StdRng::seed_from_u64(2);
+        let mut board = Board::new_with_seed(0);
+        let mut rng = StdRng::seed_from_u64(0);
         println!("{board:?}");
         let mut know: [_; 4] =
             core::array::from_fn(|i| Knowledge::new_from_board(Color::from(i), &board));
         for k in know {
             println!("{k:?}");
         }
-        (0..119).for_each(|i| {
+        (0..10000).for_each(|i| {
             let get_moves = &board.get_moves(board.current_player());
             let mv = get_moves.iter().choose(&mut rng).unwrap();
             println!("{i}: {mv}");
-            if i == 5 {
+            if i == 2959 {
                 println!("------------------------------------------------------");
                 for k in know {
                     println!("{k:?}");

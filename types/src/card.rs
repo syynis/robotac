@@ -66,7 +66,6 @@ impl Card {
             1 => Some(Card::One),
             2 => Some(Card::Two),
             3 => Some(Card::Three),
-            4 => Some(Card::Four),
             5 => Some(Card::Five),
             6 => Some(Card::Six),
             7 => Some(Card::Seven),
