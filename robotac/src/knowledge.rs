@@ -80,35 +80,14 @@ impl Knowledge {
         }
     }
 
-    pub fn update_after_move(&mut self, mv: &TacMove, board: &Board) {
-        let player = if matches!(mv.action, TacAction::Jester) {
-            board.play_for(board.current_player())
-        } else {
-            board.play_for(board.current_player()).prev()
-        };
+    pub fn update_with_move(&mut self, mv: &TacMove, board: &Board) {
+        let player = board.current_player();
         let has_traded_card = if self.played_jester {
             self.observer.partner().prev()
         } else {
             self.observer.partner()
         };
         if board.just_started() {
-            // This is here because of return
-            // If partner plays card we traded away, don't update history because it is already accounted for
-            if let Some(traded) = self.traded_away {
-                if traded == mv.card && has_traded_card == mv.played_for {
-                    self.traded_away.take();
-                } else {
-                    // Update history with card played
-                    if mv.played_for != self.observer {
-                        self.history[mv.card] += 1;
-                    }
-                }
-            } else {
-                // Update history with card played
-                if mv.played_for != self.observer {
-                    self.history[mv.card] += 1;
-                }
-            }
             for (card, v) in self.history {
                 debug_assert!(v <= card.amount());
             }
@@ -125,10 +104,9 @@ impl Knowledge {
             ];
             self.set_openings(announce_without_observer);
             self.played_jester = false;
-            return;
         }
         for (card, v) in self.history {
-            debug_assert!(v <= card.amount(), "{card:?}");
+            debug_assert!(v <= card.amount(), "{v:?} {card:?} {:?}", card.amount());
         }
         if matches!(mv.action, TacAction::Trade) {
             if mv.played_for == self.observer.partner() {
@@ -160,7 +138,7 @@ impl Knowledge {
             }
         }
         // Previous player discard because they couldn't play anything
-        if matches!(mv.action, tac_types::TacAction::Discard) && !board.was_force_discard() {
+        if matches!(mv.action, tac_types::TacAction::Discard) && !board.force_discard() {
             self.discarded_no_balls_in_play(board, player);
             if !board.balls_with(player).is_empty() {
                 self.discarded_balls_in_play(board, mv.card, player);
@@ -183,14 +161,20 @@ impl Knowledge {
 
         if matches!(mv.action, TacAction::Jester) {
             // TODO how to handle knowledge about traded card if it didnt get played yet
-            // We have hand from player after us. Update new information we got
-            self.update_with_hand(board.hand(self.observer), self.observer.next());
+            // Update new information we will get after jester is performed
+            let mut hand = board.hand(self.observer.next()).clone();
+            // If we receive the hand of the player that performed jester action,
+            // remove the card that caused the action, as it was already accounted for when played
+            if self.observer == mv.played_for.prev() {
+                hand.remove(mv.card);
+            }
+            self.update_with_hand(&hand, self.observer.next());
             // Apply rotation for hand knowledge
             self.hands.rotate_left(1);
             // Our hand is already the hand from the player after us before jester
             // So we know every card in it
             self.hands[2] = EnumMap::default();
-            for c in board.hand(self.observer.prev()).iter() {
+            for c in board.hand(self.observer).iter() {
                 self.hands[2][*c] = match self.hands[2][*c] {
                     CardKnowledgeKind::Unknown => CardKnowledgeKind::Exact(1),
                     CardKnowledgeKind::Exact(x) => CardKnowledgeKind::Exact(x + 1),
@@ -386,7 +370,7 @@ mod tests {
             let get_moves = &board.get_moves(board.current_player());
             let mv = get_moves.iter().choose(&mut rng).unwrap();
             println!("{i}: {mv}");
-            if i == 109 {
+            if i == 5 {
                 println!("------------------------------------------------------");
                 for k in know {
                     println!("{k:?}");
@@ -395,10 +379,10 @@ mod tests {
                 println!("{:?}", board.deck());
                 println!("------------------------------------------------------");
             }
-            board.make_move(mv);
             for k in &mut know {
-                k.update_after_move(mv, &board);
+                k.update_with_move(mv, &board);
             }
+            board.make_move(mv);
         });
         for k in know {
             println!("{k:?}");

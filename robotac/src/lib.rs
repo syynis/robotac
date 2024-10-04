@@ -77,7 +77,7 @@ impl GameState for Board {
     }
 
     fn update_knowledge(&self, mv: &Self::Move, knowledge: &mut Self::Knowledge) {
-        knowledge.update_after_move(mv, self);
+        knowledge.update_with_move(mv, self);
     }
 
     fn knowledge_from_state(&self, observer: Self::Player) -> Self::Knowledge {
