@@ -40,6 +40,7 @@ pub struct Board {
     one_or_thirteen: [bool; 4],
     pub move_count: u32,
     seed: u64,
+    started: Color,
 }
 
 #[allow(dead_code)]
@@ -124,6 +125,7 @@ impl Board {
             one_or_thirteen: [false; 4],
             move_count: 0,
             seed,
+            started: Color::Black,
         };
 
         s.deal_new();
@@ -279,6 +281,9 @@ impl Board {
     #[must_use]
     pub fn was_force_discard(&self) -> bool {
         let len = self.past_moves.len();
+        if len < 2 {
+            return false;
+        }
         // Last move discard and move before suspend
         self.past_moves
             .back()
@@ -395,9 +400,6 @@ impl Board {
             self.hands[player as usize].remove(mv.card);
             self.discarded.push(mv.card);
             let captured = self.apply_action(mv.action.clone(), mv.played_for);
-            if !self.jester_flag {
-                self.next_player();
-            }
             self.past_moves.push_back((mv.clone(), captured));
 
             if self.hands.iter().all(Hand::is_empty) {
@@ -405,7 +407,12 @@ impl Board {
                 self.deal_new();
                 self.past_moves.clear();
                 self.discarded.clear();
-                self.next_player();
+                self.player_to_move = self.started.next();
+                self.started = self.player_to_move;
+            } else {
+                if !self.jester_flag {
+                    self.next_player();
+                }
             }
         }
         self.move_count += 1;
@@ -700,17 +707,21 @@ impl Board {
     }
 
     pub fn redetermine(&mut self, observer: Color, knowledge: &Knowledge) {
-        let mut rng = rand::thread_rng();
+        let mut rng = StdRng::seed_from_u64(self.seed);
         let observer_hand = self.hand(observer).clone();
         // Store hand count first
         let amounts = ALL_COLORS
             .into_iter()
             .filter_map(|player| {
-                debug_assert!(self.hand(player).amount() >= knowledge.known_cards(player).len());
-                (player != observer).then_some((
-                    player,
-                    self.hand(player).amount() - knowledge.known_cards(player).len(),
-                ))
+                let exact_sum = knowledge
+                    .known_cards(player)
+                    .into_iter()
+                    .fold(0, |acc, (card, amount, exact)| {
+                        acc + if exact { amount } else { 0 }
+                    });
+                debug_assert!(self.hand(player).amount() >= exact_sum as usize);
+                (player != observer)
+                    .then_some((player, self.hand(player).amount() - exact_sum as usize))
             })
             .collect_vec();
 
@@ -729,19 +740,30 @@ impl Board {
         for (player, amount) in amounts {
             debug_assert!(player != observer);
             let hand = &mut self.hands[player as usize];
-            let known = knowledge.known_cards(player);
+            let mut known = knowledge.known_cards(player);
+            for (card, amnt, is_exact) in &mut known {
+                if *is_exact {
+                    (0..*amnt).for_each(|_| {
+                        self.deck.take(*card);
+                        hand.push(*card);
+                    });
+                    *amnt = 0;
+                }
+            }
             (0..amount).for_each(|_| {
                 let mut drawn = self.deck.draw_one(&mut rng);
-                while known.iter().any(|c| *c == drawn) {
+                while known.iter().any(|(c, a, _)| *c == drawn && *a == 0) {
                     self.deck.put_back(drawn);
                     drawn = self.deck.draw_one(&mut rng);
                 }
+                if let Some((_, a, _)) = known.iter_mut().find(|(c, _, _)| *c == drawn) {
+                    debug_assert!(*a > 0);
+                    *a -= 1;
+                }
+
                 hand.push(drawn);
             });
-            for card in known {
-                hand.push(card);
-            }
-            debug_assert!(hand.amount() == amount + knowledge.known_cards(player).len());
+            // debug_assert!(hand.amount() == amount + knowledge.known_cards(player).len());
         }
         debug_assert!(self
             .hand(observer)
@@ -752,6 +774,11 @@ impl Board {
     #[must_use]
     pub fn openings(&self) -> [bool; 4] {
         self.one_or_thirteen
+    }
+
+    #[must_use]
+    pub fn deck(&self) -> &Deck {
+        &self.deck
     }
 
     #[cfg(test)]

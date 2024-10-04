@@ -64,7 +64,9 @@ impl Deck {
     }
 
     pub fn take(&mut self, card: Card) {
-        self.cards[card as usize].1 -= 1;
+        let amount = &mut self.cards[card as usize].1;
+        debug_assert!(*amount > 0);
+        *amount -= 1;
     }
 
     pub fn put_back(&mut self, card: Card) {

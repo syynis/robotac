@@ -8,9 +8,10 @@ pub struct Knowledge {
     observer: Color,
     hands: [EnumMap<Card, CardKnowledgeKind>; 3],
     has_opening: [bool; 3],
-    history: EnumMap<Card, u8>,
+    pub history: EnumMap<Card, u8>,
     traded_away: Option<Card>,
     got_traded: Option<Card>,
+    played_jester: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Default, Ord, Hash)]
@@ -31,6 +32,7 @@ impl Knowledge {
             history: EnumMap::default(),
             traded_away: None,
             got_traded: None,
+            played_jester: false,
         }
     }
 
@@ -79,7 +81,37 @@ impl Knowledge {
     }
 
     pub fn update_after_move(&mut self, mv: &TacMove, board: &Board) {
+        let player = if matches!(mv.action, TacAction::Jester) {
+            board.play_for(board.current_player())
+        } else {
+            board.play_for(board.current_player()).prev()
+        };
+        let has_traded_card = if self.played_jester {
+            self.observer.partner().prev()
+        } else {
+            self.observer.partner()
+        };
         if board.just_started() {
+            // This is here because of return
+            // If partner plays card we traded away, don't update history because it is already accounted for
+            if let Some(traded) = self.traded_away {
+                if traded == mv.card && has_traded_card == mv.played_for {
+                    self.traded_away.take();
+                } else {
+                    // Update history with card played
+                    if mv.played_for != self.observer {
+                        self.history[mv.card] += 1;
+                    }
+                }
+            } else {
+                // Update history with card played
+                if mv.played_for != self.observer {
+                    self.history[mv.card] += 1;
+                }
+            }
+            for (card, v) in self.history {
+                debug_assert!(v <= card.amount());
+            }
             if board.deck_fresh() {
                 self.history = EnumMap::default();
             }
@@ -92,6 +124,11 @@ impl Knowledge {
                 announce[self.observer.prev() as usize],
             ];
             self.set_openings(announce_without_observer);
+            self.played_jester = false;
+            return;
+        }
+        for (card, v) in self.history {
+            debug_assert!(v <= card.amount(), "{card:?}");
         }
         if matches!(mv.action, TacAction::Trade) {
             if mv.played_for == self.observer.partner() {
@@ -105,22 +142,23 @@ impl Knowledge {
             }
             return;
         }
-
-        let player = board.play_for(board.current_player()).prev();
+        // TODO need to account for jester flag
         // If partner plays card we traded away, don't update history because it is already accounted for
         if let Some(traded) = self.traded_away {
-            if traded == mv.card && self.observer.partner() == player {
+            if traded == mv.card && has_traded_card == player {
                 self.traded_away.take();
             } else {
                 // Update history with card played
-                self.update_with_card(mv.card, player);
+                if player != self.observer {
+                    self.update_with_card(mv.card, player);
+                }
             }
         } else {
             // Update history with card played
-            self.update_with_card(mv.card, player);
+            if player != self.observer {
+                self.update_with_card(mv.card, player);
+            }
         }
-        // Check which cards can still be in the deck
-        self.sync();
         // Previous player discard because they couldn't play anything
         if matches!(mv.action, tac_types::TacAction::Discard) && !board.was_force_discard() {
             self.discarded_no_balls_in_play(board, player);
@@ -135,7 +173,7 @@ impl Knowledge {
             self.update_with_hand(hand, next);
             self.hands[0] = EnumMap::default();
             for c in hand.iter() {
-                match self.hands[0][*c] {
+                self.hands[0][*c] = match self.hands[0][*c] {
                     CardKnowledgeKind::Unknown => CardKnowledgeKind::Exact(1),
                     CardKnowledgeKind::Exact(x) => CardKnowledgeKind::Exact(x + 1),
                     CardKnowledgeKind::Atmost(_) => unreachable!(),
@@ -153,13 +191,16 @@ impl Knowledge {
             // So we know every card in it
             self.hands[2] = EnumMap::default();
             for c in board.hand(self.observer.prev()).iter() {
-                match self.hands[2][*c] {
+                self.hands[2][*c] = match self.hands[2][*c] {
                     CardKnowledgeKind::Unknown => CardKnowledgeKind::Exact(1),
                     CardKnowledgeKind::Exact(x) => CardKnowledgeKind::Exact(x + 1),
                     CardKnowledgeKind::Atmost(_) => unreachable!(),
                 };
             }
+            self.played_jester = true;
         }
+        // Check which cards can still be in the deck
+        self.sync();
     }
 
     pub fn discarded_no_balls_in_play(&mut self, board: &Board, player: Color) {
@@ -210,7 +251,7 @@ impl Knowledge {
     }
 
     #[must_use]
-    pub fn known_cards(&self, player: Color) -> Vec<Card> {
+    pub fn known_cards(&self, player: Color) -> Vec<(Card, u8, bool)> {
         let mut cards = Vec::new();
         // TODO this check shouldnt be necessary
         if player == self.observer {
@@ -218,10 +259,9 @@ impl Knowledge {
         }
         for (card, knowledge) in self.hands[self.idx(player)] {
             match knowledge {
-                CardKnowledgeKind::Exact(x) => {
-                    (0..x).for_each(|_| cards.push(card));
-                }
-                CardKnowledgeKind::Atmost(_) | CardKnowledgeKind::Unknown => {}
+                CardKnowledgeKind::Exact(x) => cards.push((card, x, true)),
+                CardKnowledgeKind::Atmost(x) => cards.push((card, x, false)),
+                CardKnowledgeKind::Unknown => {}
             }
         }
         cards
@@ -256,7 +296,7 @@ impl Knowledge {
                     self.hands[self.idx(player)][card] = CardKnowledgeKind::Atmost(x - 1);
                 }
                 CardKnowledgeKind::Exact(x) => {
-                    debug_assert!(x > 0);
+                    debug_assert!(x > 0, "{player:?} {card:?}\n{:?} ", self);
                     self.set_exact(card, player, x - 1);
                 }
             }
@@ -272,7 +312,9 @@ impl Knowledge {
         for card in &CARDS {
             if !self.possible(*card) {
                 self.hands.iter_mut().for_each(|hand| {
-                    hand[*card] = CardKnowledgeKind::Exact(0);
+                    if let CardKnowledgeKind::Unknown = hand[*card] {
+                        hand[*card] = CardKnowledgeKind::Exact(0)
+                    };
                 });
             }
         }
@@ -326,22 +368,33 @@ impl std::fmt::Debug for Knowledge {
 #[cfg(test)]
 mod tests {
     use mcts::GameState;
-    use rand::{seq::IteratorRandom, thread_rng};
+    use rand::{rngs::StdRng, seq::IteratorRandom, thread_rng, SeedableRng};
 
     use super::*;
     #[test]
     fn announce() {
+        // 2 -> jester
         let mut board = Board::new_with_seed(2);
-        let mut rng = thread_rng();
+        let mut rng = StdRng::seed_from_u64(2);
         println!("{board:?}");
         let mut know: [_; 4] =
             core::array::from_fn(|i| Knowledge::new_from_board(Color::from(i), &board));
         for k in know {
             println!("{k:?}");
         }
-        (0..4).for_each(|_| {
+        (0..119).for_each(|i| {
             let get_moves = &board.get_moves(board.current_player());
             let mv = get_moves.iter().choose(&mut rng).unwrap();
+            println!("{i}: {mv}");
+            if i == 109 {
+                println!("------------------------------------------------------");
+                for k in know {
+                    println!("{k:?}");
+                }
+                println!("{board:?}");
+                println!("{:?}", board.deck());
+                println!("------------------------------------------------------");
+            }
             board.make_move(mv);
             for k in &mut know {
                 k.update_after_move(mv, &board);
@@ -350,5 +403,6 @@ mod tests {
         for k in know {
             println!("{k:?}");
         }
+        println!("{board:?}");
     }
 }
