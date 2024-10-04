@@ -409,10 +409,8 @@ impl Board {
                 self.discarded.clear();
                 self.player_to_move = self.started.next();
                 self.started = self.player_to_move;
-            } else {
-                if !self.jester_flag {
-                    self.next_player();
-                }
+            } else if !self.jester_flag {
+                self.next_player();
             }
         }
         self.move_count += 1;
@@ -716,7 +714,7 @@ impl Board {
                 let exact_sum = knowledge
                     .known_cards(player)
                     .into_iter()
-                    .fold(0, |acc, (card, amount, exact)| {
+                    .fold(0, |acc, (_, amount, exact)| {
                         acc + if exact { amount } else { 0 }
                     });
                 debug_assert!(self.hand(player).amount() >= exact_sum as usize);
@@ -736,7 +734,6 @@ impl Board {
         }
 
         // Draw cards equal to the amount put back
-        // TODO handle at most -> if we drew atmost amount already put back if we draw
         for (player, amount) in amounts {
             debug_assert!(player != observer);
             let hand = &mut self.hands[player as usize];

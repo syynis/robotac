@@ -138,7 +138,10 @@ impl Knowledge {
             }
         }
         // Previous player discard because they couldn't play anything
-        if matches!(mv.action, tac_types::TacAction::Discard) && !board.force_discard() {
+        if matches!(mv.action, tac_types::TacAction::Discard)
+            && !board.force_discard()
+            && mv.played_for != self.observer
+        {
             self.discarded_no_balls_in_play(board, player);
             if !board.balls_with(player).is_empty() {
                 self.discarded_balls_in_play(board, mv.card, player);
@@ -160,7 +163,6 @@ impl Knowledge {
         }
 
         if matches!(mv.action, TacAction::Jester) {
-            // TODO how to handle knowledge about traded card if it didnt get played yet
             // Update new information we will get after jester is performed
             let mut hand = board.hand(self.observer.next()).clone();
             // If we receive the hand of the player that performed jester action,
@@ -217,13 +219,14 @@ impl Knowledge {
             // Get the ball with the highest distance forwards to the next ball
             let max_amount_between_balls = ours
                 .iter()
-                .max_by_key(|ball| {
+                .map(|ball| {
                     (all ^ ball.bitboard())
                         .rotate_right(ball.0)
                         .try_next_square()
                         .map_or(0, |s| s.0)
                 })
-                .map_or(0, |s| s.0);
+                .max()
+                .map_or(0, |x| x);
             // Rule out any card that could move forwards with the maximum space we have
             for steps in 1..max_amount_between_balls {
                 if let Some(c) = Card::from_steps(steps) {
@@ -237,7 +240,6 @@ impl Knowledge {
     #[must_use]
     pub fn known_cards(&self, player: Color) -> Vec<(Card, u8, bool)> {
         let mut cards = Vec::new();
-        // TODO this check shouldnt be necessary
         if player == self.observer {
             return cards;
         }
@@ -252,10 +254,7 @@ impl Knowledge {
     }
 
     pub fn rule_out(&mut self, card: Card, player: Color) {
-        // TODO this check shouldnt be necessary
-        if player == self.observer {
-            return;
-        }
+        debug_assert!(player != self.observer);
         self.hands[self.idx(player)][card] = CardKnowledgeKind::Exact(0);
     }
 
@@ -280,7 +279,7 @@ impl Knowledge {
                     self.hands[self.idx(player)][card] = CardKnowledgeKind::Atmost(x - 1);
                 }
                 CardKnowledgeKind::Exact(x) => {
-                    debug_assert!(x > 0, "{player:?} {card:?}\n{:?} ", self);
+                    debug_assert!(x > 0, "{player:?} {card:?}\n{self:?}");
                     self.set_exact(card, player, x - 1);
                 }
             }
@@ -297,7 +296,7 @@ impl Knowledge {
             if !self.possible(*card) {
                 self.hands.iter_mut().for_each(|hand| {
                     if let CardKnowledgeKind::Unknown = hand[*card] {
-                        hand[*card] = CardKnowledgeKind::Exact(0)
+                        hand[*card] = CardKnowledgeKind::Exact(0);
                     };
                 });
             }
