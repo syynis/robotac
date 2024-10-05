@@ -778,6 +778,11 @@ impl Board {
         &self.deck
     }
 
+    #[must_use]
+    pub fn won(&self, player: Color) -> bool {
+        self.home(player).is_full() && self.home(player.partner()).is_full()
+    }
+
     #[cfg(test)]
     pub fn set_player(&mut self, player: Color) {
         self.player_to_move = player;

@@ -35,6 +35,11 @@ impl Hand {
         );
     }
 
+    #[must_use]
+    pub fn contains(&self, card: Card) -> bool {
+        self.0.iter().any(|c| *c == card)
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &Card> + '_ {
         self.0.iter()
     }

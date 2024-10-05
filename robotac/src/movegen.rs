@@ -8,6 +8,20 @@ impl Board {
     pub fn get_moves(&self, player: Color) -> Vec<TacMove> {
         let mut moves = Vec::new();
         let hand = self.hand(player);
+
+        // If player before us did winning move
+        if self.need_trade() && (self.won(Color::Black) || self.won(Color::Blue)) {
+            // No moves possible - game is over
+            return Vec::new();
+        }
+        if self.won(player.prev()) {
+            // If we have tac see if we are able to use it to prevent win
+            if self.hand(player).contains(Card::Tac) {
+                return self.tac_moves(player);
+            }
+            // No moves possible - game is over
+            return Vec::new();
+        }
         // If in trade phase trade move for every card in hand
         if self.need_trade() {
             for card in hand.iter().sorted().dedup() {
@@ -360,7 +374,7 @@ impl Board {
                 state
                     .moves_for_card(player, last_move.card)
                     .into_iter()
-                    .map(|m| TacMove::new(Card::Tac, m.action, player)),
+                    .map(|m| TacMove::new(Card::Tac, m.action, m.played_for)),
             );
         }
 

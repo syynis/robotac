@@ -68,10 +68,6 @@ impl Board {
         eval
     }
 
-    fn won(&self, player: Color) -> bool {
-        self.home(player).is_full() && self.home(player.partner()).is_full()
-    }
-
     fn ball_in_play(&self, player: Color) -> bool {
         !self.balls_with(player).is_empty()
     }

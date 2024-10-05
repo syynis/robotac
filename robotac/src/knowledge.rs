@@ -82,6 +82,7 @@ impl Knowledge {
 
     pub fn update_with_move(&mut self, mv: &TacMove, board: &Board) {
         let player = board.current_player();
+        // Account for when jester was played this hand
         let has_traded_card = if self.played_jester {
             self.observer.partner().prev()
         } else {
@@ -120,7 +121,6 @@ impl Knowledge {
             }
             return;
         }
-        // TODO need to account for jester flag
         // If partner plays card we traded away, don't update history because it is already accounted for
         if let Some(traded) = self.traded_away {
             if traded == mv.card && has_traded_card == player {
@@ -366,19 +366,22 @@ mod tests {
     #[test]
     fn announce() {
         // 2 -> jester
-        let mut board = Board::new_with_seed(0);
-        let mut rng = StdRng::seed_from_u64(0);
+        let mut board = Board::new_with_seed(2);
+        let mut rng = StdRng::seed_from_u64(2);
         println!("{board:?}");
         let mut know: [_; 4] =
             core::array::from_fn(|i| Knowledge::new_from_board(Color::from(i), &board));
         for k in know {
             println!("{k:?}");
         }
-        (0..10000).for_each(|i| {
+        for i in 0..5000 {
             let get_moves = &board.get_moves(board.current_player());
-            let mv = get_moves.iter().choose(&mut rng).unwrap();
+            let Some(mv) = get_moves.iter().choose(&mut rng) else {
+                // Game over
+                break;
+            };
             println!("{i}: {mv}");
-            if i == 2959 {
+            if i == 1150 {
                 println!("------------------------------------------------------");
                 for k in know {
                     println!("{k:?}");
@@ -391,7 +394,7 @@ mod tests {
                 k.update_with_move(mv, &board);
             }
             board.make_move(mv);
-        });
+        }
         for k in know {
             println!("{k:?}");
         }
