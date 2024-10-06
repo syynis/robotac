@@ -39,9 +39,7 @@ impl Knowledge {
     #[must_use]
     pub fn new_from_board(observer: Color, board: &Board) -> Self {
         let mut res = Self::new(observer);
-        res.update_with_hand(board.hand(observer), observer);
         if board.just_started() {
-            res.hands = [EnumMap::default(); 3];
             let openings = board.openings();
             let others_openings = [
                 openings[observer.next() as usize],
@@ -50,6 +48,7 @@ impl Knowledge {
             ];
             res.set_openings(others_openings);
         }
+        res.update_with_hand(board.hand(observer), observer);
         res.sync();
         res
     }
@@ -106,6 +105,7 @@ impl Knowledge {
             self.set_openings(announce_without_observer);
             self.played_jester = false;
         }
+        self.sync();
         for (card, v) in self.history {
             debug_assert!(v <= card.amount(), "{v:?} {card:?} {:?}", card.amount());
         }
@@ -330,10 +330,11 @@ impl Knowledge {
 
 impl std::fmt::Debug for Knowledge {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Obs  {:?}", self.observer)?;
-        writeln!(f, "Open {:?}", self.has_opening)?;
-        writeln!(f, "Away {:?}", self.traded_away)?;
-        writeln!(f, "Got  {:?}", self.got_traded)?;
+        write!(f, "Obs  {:?}, ", self.observer)?;
+        write!(f, "Open {:?}, ", self.has_opening)?;
+        write!(f, "Away {:?}, ", self.traded_away)?;
+        write!(f, "Got  {:?}, ", self.got_traded)?;
+        write!(f, "Jest {:?}\n", self.played_jester)?;
         for (idx, k) in self.hands.iter().enumerate() {
             if idx == 0 {
                 write!(f, "next: ")?;
