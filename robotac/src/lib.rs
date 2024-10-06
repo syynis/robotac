@@ -24,6 +24,10 @@ impl MCTS for TacAI {
     type State = Board;
     type Eval = TacEval;
     type Select = UCTPolicy;
+
+    fn virtual_loss(&self) -> i64 {
+        5
+    }
 }
 
 impl Evaluator<TacAI> for TacEval {

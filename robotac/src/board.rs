@@ -705,7 +705,8 @@ impl Board {
     }
 
     pub fn redetermine(&mut self, observer: Color, knowledge: &Knowledge) {
-        let mut rng = StdRng::seed_from_u64(self.seed);
+        // let mut rng = StdRng::seed_from_u64(self.seed);
+        let mut rng = rand::thread_rng();
         let observer_hand = self.hand(observer).clone();
         // Store hand count first
         let amounts = ALL_COLORS
