@@ -105,7 +105,6 @@ impl Knowledge {
             self.set_openings(announce_without_observer);
             self.played_jester = false;
         }
-        self.sync();
         for (card, v) in self.history {
             debug_assert!(v <= card.amount(), "{v:?} {card:?} {:?}", card.amount());
         }
@@ -119,6 +118,7 @@ impl Knowledge {
                     self.hands[1][mv.card] = CardKnowledgeKind::Exact(x + 1);
                 }
             }
+            self.sync();
             return;
         }
         // If partner plays card we traded away, don't update history because it is already accounted for
@@ -151,8 +151,13 @@ impl Knowledge {
 
         if matches!(mv.action, TacAction::Devil) && mv.played_for == self.observer {
             let next = mv.played_for.next();
-            let hand = board.hand(next);
-            self.update_with_hand(hand, next);
+            let mut hand = board.hand(next).clone();
+            if self.played_jester {
+                if let Some(card) = self.traded_away {
+                    hand.remove(card);
+                }
+            }
+            self.update_with_hand(&hand, next);
             self.hands[0] = EnumMap::default();
             for c in hand.iter() {
                 self.hands[0][*c] = match self.hands[0][*c] {
@@ -362,43 +367,54 @@ impl std::fmt::Debug for Knowledge {
 mod tests {
     use mcts::GameState;
     use rand::{rngs::StdRng, seq::IteratorRandom, thread_rng, SeedableRng};
+    use tac_types::ALL_COLORS;
 
     use super::*;
     #[test]
     fn announce() {
-        // 2 -> jester
+        for seed in 0..1000 {
+            println!("SEED {seed}");
+            let mut board = Board::new_with_seed(seed);
+            println!("{board:?}");
+            let mut rng = StdRng::seed_from_u64(seed);
+            let mut know: [_; 4] =
+                core::array::from_fn(|i| Knowledge::new_from_board(Color::from(i), &board));
+            for i in 0..10000 {
+                let get_moves = &board.get_moves(board.current_player());
+                let Some(mv) = get_moves.iter().choose(&mut rng) else {
+                    // Game over
+                    break;
+                };
+                // if seed == 5 && i == 697 {
+                // if seed == 58 && i == 844 {
+                // if seed == 7 && i == 844 {
+                // if seed == 73 && i == 100 {
+                if seed == 109 && i == 1157 {
+                    println!("{board:?}");
+                }
+                println!("{i}: {mv}");
+                for k in &mut know {
+                    k.update_with_move(mv, &board);
+                }
+                board.make_move(mv);
+            }
+        }
+    }
+    #[test]
+    fn redetermine() {
         let mut board = Board::new_with_seed(2);
         let mut rng = StdRng::seed_from_u64(2);
         println!("{board:?}");
         let mut know: [_; 4] =
             core::array::from_fn(|i| Knowledge::new_from_board(Color::from(i), &board));
-        for k in know {
-            println!("{k:?}");
+        // for k in know {
+        //     println!("{k:?}");
+        // }
+        for (i, c) in ALL_COLORS.into_iter().enumerate() {
+            let mut board = board.clone();
+            board.redetermine(c, &know[i]);
+            println!("REDETERMINED {c:?}\n{board:?}");
+            break;
         }
-        for i in 0..5000 {
-            let get_moves = &board.get_moves(board.current_player());
-            let Some(mv) = get_moves.iter().choose(&mut rng) else {
-                // Game over
-                break;
-            };
-            println!("{i}: {mv}");
-            if i == 1150 {
-                println!("------------------------------------------------------");
-                for k in know {
-                    println!("{k:?}");
-                }
-                println!("{board:?}");
-                println!("{:?}", board.deck());
-                println!("------------------------------------------------------");
-            }
-            for k in &mut know {
-                k.update_with_move(mv, &board);
-            }
-            board.make_move(mv);
-        }
-        for k in know {
-            println!("{k:?}");
-        }
-        println!("{board:?}");
     }
 }

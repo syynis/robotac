@@ -397,7 +397,15 @@ impl Board {
             };
             self.next_player();
         } else {
-            self.hands[player as usize].remove(mv.card);
+            let could_be_removed = self.hands[player as usize].remove(mv.card);
+            if !could_be_removed {
+                println!("{self:?}");
+                println!("{mv}");
+                panic!(
+                    "We require the card to be in hand {:?} {:?}",
+                    mv.card, self.hands[player as usize]
+                );
+            }
             self.discarded.push(mv.card);
             let captured = self.apply_action(mv.action.clone(), mv.played_for);
             self.past_moves.push_back((mv.clone(), captured));
@@ -456,28 +464,27 @@ impl Board {
                 let mut board_steps = steps
                     .iter()
                     .filter_map(|s| match s {
-                        TacAction::Step { from, to } => Some((*from, *to, None)),
+                        TacAction::Step { from, to } => Some((*from, *from, *to, None)),
                         TacAction::StepInHome { from, to } => {
-                            Some((*from, player.home(), Some(*to)))
+                            Some((*from, *from, player.home(), Some(*to)))
                         }
                         _ => None,
                     })
-                    .sorted_unstable_by(|(s1, _, _), (s2, _, _)| {
+                    .sorted_by(|(_, s1, _, _), (_, s2, _, _)| {
                         if s1.0 == 0 && s2.0 == 63 {
-                            Ordering::Greater
-                        } else if s1.0 == 63 && s2.0 == 0 {
                             Ordering::Less
+                        } else if s1.0 == 63 && s2.0 == 0 {
+                            Ordering::Greater
                         } else {
-                            Ord::cmp(s1, s2)
+                            Ord::cmp(s1, s2).reverse()
                         }
                     })
-                    .rev()
                     .collect_vec();
-                let mut res = SmallVec::new();
+                let mut res: SmallVec<(Square, Color), 7> = SmallVec::new();
                 let mut change = true;
                 while change {
                     change = false;
-                    for (s, e, g) in &mut board_steps {
+                    for (orig, s, e, g) in &mut board_steps {
                         if s == e {
                             if let Some(goal) = g {
                                 self.move_ball_to_goal(*e, *goal, player);
@@ -497,7 +504,24 @@ impl Board {
                 if res.is_empty() {
                     return None;
                 }
-                return Some(TacMoveResult::SevenCaptures(res));
+                // TODO handle case with setpinhome
+                let res = res
+                    .iter()
+                    .map(|(sq, c)| {
+                        (
+                            if *c == player {
+                                board_steps
+                                    .iter()
+                                    .find_map(|(orig, s, _, _)| (*sq == *s).then_some(*orig))
+                                    .unwrap_or(*sq)
+                            } else {
+                                *sq
+                            },
+                            *c,
+                        )
+                    })
+                    .collect_vec();
+                return Some(TacMoveResult::SevenCaptures(res.into()));
             }
             TacAction::Warrior { from, to } => {
                 if from == to {
@@ -559,29 +583,47 @@ impl Board {
                 // We have to do undoing for step and step home in two steps
                 // This is because different two steps could share the same square as
                 // their start or end square respectively
-                // TODO what about order of stephome / stepinhome
+
+                // Store the start positions of self captured balls to handle seperately
+                // after removing balls from their end position
                 for s in &steps {
                     match s {
-                        TacAction::Step { to, .. } => self.unset(*to, player),
+                        TacAction::Step { to, .. } => {
+                            if self.balls_with(player).has(*to) {
+                                self.unset(*to, player);
+                            }
+                        }
                         TacAction::StepHome { to, .. } | TacAction::StepInHome { to, .. } => {
                             self.homes[player as usize].unset(*to);
                         }
                         _ => unreachable!(),
                     }
                 }
-                for s in &steps {
+
+                let mut moved = Vec::new();
+                for s in steps.into_iter() {
                     match s {
-                        TacAction::Step { from, .. } | TacAction::StepInHome { from, .. } => {
-                            self.set(*from, player);
+                        TacAction::Step { from, .. } => {
+                            self.set(from, player);
+                            moved.push(from);
                         }
-                        TacAction::StepHome { from, .. } => self.homes[player as usize].set(*from),
+                        TacAction::StepInHome { from, .. } => {
+                            self.set(from, player);
+                            moved.push(from);
+                        }
+                        TacAction::StepHome { from, .. } => self.homes[player as usize].set(from),
                         _ => unreachable!(),
                     }
                 }
                 if let Some(TacMoveResult::SevenCaptures(captures)) = captured {
                     for (square, color) in captures {
+                        // color == player already handled above
                         self.base[color as usize] -= 1;
-                        self.set(square, color);
+                        if color != player {
+                            self.set(square, color);
+                        } else if !moved.contains(&square) {
+                            self.set(square, color);
+                        }
                     }
                 }
             }
@@ -732,6 +774,7 @@ impl Board {
             for card in self.hands[player as usize].0.drain(..) {
                 self.deck.put_back(card);
             }
+            debug_assert!(self.hands[player as usize].is_empty());
         }
 
         // Draw cards equal to the amount put back

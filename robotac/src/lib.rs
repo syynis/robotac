@@ -84,6 +84,10 @@ impl GameState for Board {
         knowledge.update_with_move(mv, self);
     }
 
+    fn new_knowledge(&self, observer: Self::Player) -> Self::Knowledge {
+        Knowledge::new(observer)
+    }
+
     fn knowledge_from_state(&self, observer: Self::Player) -> Self::Knowledge {
         Knowledge::new_from_board(observer, self)
     }
