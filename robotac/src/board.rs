@@ -455,25 +455,28 @@ impl Board {
             TacAction::Devil => self.devil_flag = true,
             TacAction::Discard => self.discard_flag = false,
             TacAction::SevenSteps { steps } => {
+                // Move in home first, this is because `StepInHome` moves rely on this
+                // due to move generation
                 for s in &steps {
                     if let TacAction::StepHome { from, to } = s {
                         self.move_ball_in_goal(*from, *to, player);
                     };
                 }
 
+                // Order steps to prevent capturing of balls that have to move
                 let mut board_steps = steps
                     .iter()
                     .filter_map(|s| match s {
-                        TacAction::Step { from, to } => Some((*from, *from, *to, None)),
+                        TacAction::Step { from, to } => Some((*from, *from, *to, None, false)),
                         TacAction::StepInHome { from, to } => {
-                            Some((*from, *from, player.home(), Some(*to)))
+                            Some((*from, *from, player.home(), Some(*to), true))
                         }
                         _ => None,
                     })
-                    .sorted_by(|(_, s1, _, _), (_, s2, _, _)| {
-                        if s1.0 == 0 && s2.0 == 63 {
+                    .sorted_by(|(_, s1, _, _, _), (_, s2, _, _, _)| {
+                        if s1.is_min() && s2.is_max() {
                             Ordering::Less
-                        } else if s1.0 == 63 && s2.0 == 0 {
+                        } else if s1.is_max() && s2.is_min() {
                             Ordering::Greater
                         } else {
                             Ord::cmp(s1, s2).reverse()
@@ -484,16 +487,20 @@ impl Board {
                 let mut change = true;
                 while change {
                     change = false;
-                    for (orig, s, e, g) in &mut board_steps {
+                    for (orig, s, e, g, _) in &mut board_steps {
+                        // We are at the end
                         if s == e {
+                            // Step in home
                             if let Some(goal) = g {
                                 self.move_ball_to_goal(*e, *goal, player);
                                 *g = None;
                                 change = true;
                             }
                         } else {
+                            // Step one square forwards
                             let next = s.add(1);
                             if let Some(cap) = self.move_ball(*s, next, player) {
+                                // Store position and color if we captured
                                 res.push((next, cap));
                             }
                             *s = next;
@@ -501,18 +508,21 @@ impl Board {
                         }
                     }
                 }
+                // No captures
                 if res.is_empty() {
                     return None;
                 }
-                // TODO handle case with setpinhome
                 let res = res
                     .iter()
                     .map(|(sq, c)| {
                         (
+                            // If captured ball is same color as moving player,
+                            // adjust it in case it moved before being captured
+                            // TODO Maybe move this above because this doesnt handle, balls that didnt move
                             if *c == player {
                                 board_steps
                                     .iter()
-                                    .find_map(|(orig, s, _, _)| (*sq == *s).then_some(*orig))
+                                    .find_map(|(orig, s, _, _, in_home)| (!in_home && *sq == *s).then_some(*orig))
                                     .unwrap_or(*sq)
                             } else {
                                 *sq

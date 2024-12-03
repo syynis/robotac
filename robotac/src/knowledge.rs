@@ -389,7 +389,7 @@ mod tests {
                 // if seed == 58 && i == 844 {
                 // if seed == 7 && i == 844 {
                 // if seed == 73 && i == 100 {
-                if seed == 109 && i == 1157 {
+                if seed == 123 && i == 1776 {
                     println!("{board:?}");
                 }
                 println!("{i}: {mv}");
@@ -397,6 +397,9 @@ mod tests {
                     k.update_with_move(mv, &board);
                 }
                 board.make_move(mv);
+                if seed == 7 && i == 844 {
+                    println!("{board:?}");
+                }
             }
         }
     }

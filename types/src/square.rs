@@ -8,6 +8,9 @@ use crate::{bitboard::BitBoard, color::Color};
 pub struct Square(pub u8);
 
 impl Square {
+    const MIN: Square = Square(0);
+    const MAX: Square = Square(63);
+
     #[must_use]
     pub const fn bitboard(self) -> BitBoard {
         BitBoard(1 << self.0)
@@ -47,5 +50,15 @@ impl Square {
         } else {
             64 - (self.0 - other.0)
         }
+    }
+
+    #[must_use]
+    pub fn is_min(self) -> bool {
+        self == Self::MIN
+    }
+
+    #[must_use]
+    pub fn is_max(self) -> bool {
+        self == Self::MAX
     }
 }
