@@ -60,7 +60,12 @@ impl Board {
             // If our budget is entirely for home moves don't check for ring moves
             if home_budget == 7 {
                 moves.extend(home_moves.into_iter().map(|steps| {
-                    TacMove::new(Card::Seven, TacAction::SevenSteps { steps }, player)
+                    TacMove::new(
+                        Card::Seven,
+                        TacAction::SevenSteps { steps },
+                        player,
+                        self.play_for(player),
+                    )
                 }));
                 return moves;
             }
@@ -264,11 +269,14 @@ impl Board {
                 }
             }
 
-            moves.extend(
-                combinations.into_iter().map(|steps| {
-                    TacMove::new(Card::Seven, TacAction::SevenSteps { steps }, player)
-                }),
-            );
+            moves.extend(combinations.into_iter().map(|steps| {
+                TacMove::new(
+                    Card::Seven,
+                    TacAction::SevenSteps { steps },
+                    player,
+                    self.play_for(player),
+                )
+            }));
         }
         moves
     }

@@ -92,6 +92,7 @@ pub struct TacMove {
     pub card: Card,
     pub action: TacAction,
     pub played_for: Color,
+    pub played_by: Color,
 }
 
 impl Display for TacMove {
@@ -102,11 +103,12 @@ impl Display for TacMove {
 
 impl TacMove {
     #[must_use]
-    pub fn new(card: Card, action: TacAction, played_for: Color) -> Self {
+    pub fn new(card: Card, action: TacAction, played_for: Color, played_by: Color) -> Self {
         Self {
             card,
             action,
             played_for,
+            played_by,
         }
     }
 }

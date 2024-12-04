@@ -212,7 +212,8 @@ impl Knowledge {
             self.rule_out(Card::Seven, player);
             for c in &[Card::One, Card::Two, Card::Three] {
                 // If no moves available for two or three, rule out aswell
-                if !Board::home_moves_for(home, player, *c).is_empty() {
+                // TODO correct play_for
+                if !Board::home_moves_for(home, player, player, *c).is_empty() {
                     self.rule_out(*c, player);
                 }
             }
@@ -243,8 +244,9 @@ impl Knowledge {
             }
         }
         // No four in hand if possible moves but not played
+        // TODO correct play_for
         if !board
-            .moves_for_card_squares(board.balls_with(player), player, Card::Four)
+            .moves_for_card_squares(board.balls_with(player), player, player, Card::Four)
             .is_empty()
         {
             self.rule_out(Card::Four, player);

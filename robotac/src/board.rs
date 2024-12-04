@@ -522,7 +522,9 @@ impl Board {
                             if *c == player {
                                 board_steps
                                     .iter()
-                                    .find_map(|(orig, s, _, _, in_home)| (!in_home && *sq == *s).then_some(*orig))
+                                    .find_map(|(orig, s, _, _, in_home)| {
+                                        (!in_home && *sq == *s).then_some(*orig)
+                                    })
                                     .unwrap_or(*sq)
                             } else {
                                 *sq
@@ -860,7 +862,9 @@ impl std::fmt::Debug for Board {
         for hand in &self.hands {
             writeln!(f, "{:?}, ", hand.0)?;
         }
-        write!(f, "homes: ")?;
+        write!(f, "deck: ")?;
+        write!(f, "{:?}, ", self.deck)?;
+        write!(f, "\nhomes: ")?;
         for home in self.homes {
             write!(f, "{:#b}, ", home.0)?;
         }
