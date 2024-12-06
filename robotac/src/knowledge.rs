@@ -5,12 +5,19 @@ use crate::board::Board;
 
 #[derive(Clone, Copy)]
 pub struct Knowledge {
+    // Owner
     observer: Color,
+    // Hand information state for each other player
     hands: [EnumMap<Card, CardKnowledgeKind>; 3],
+    // Announcement information for each other player
     has_opening: [bool; 3],
+    // How many of each card type seen already
     pub history: EnumMap<Card, u8>,
+    // Card we traded away. This holds a value until the card is played
     traded_away: Option<Card>,
+    // Card we got. This holds a value until the card is played
     got_traded: Option<Card>,
+    // Did jester get played this round
     played_jester: bool,
 }
 
@@ -55,9 +62,7 @@ impl Knowledge {
 
     pub fn set_openings(&mut self, openings: [bool; 3]) {
         self.has_opening = openings;
-
-        let (next, prev) = (openings[0], openings[2]);
-        let partner = openings[1];
+        let [next, partner, prev] = openings;
         if !partner {
             self.hands[1][Card::One] = CardKnowledgeKind::Exact(0);
             self.hands[1][Card::Thirteen] = CardKnowledgeKind::Exact(0);
@@ -80,22 +85,29 @@ impl Knowledge {
     }
 
     pub fn update_with_move(&mut self, mv: &TacMove, board: &Board) {
-        let player = board.current_player();
+        assert_eq!(mv.played_by, board.current_player(), "{}", mv);
+        let player = mv.played_by;
+        let play_for = mv.played_for;
         // Account for when jester was played this hand
         let has_traded_card = if self.played_jester {
             self.observer.partner().prev()
         } else {
             self.observer.partner()
         };
+        // New hand
         if board.just_started() {
             for (card, v) in self.history {
                 debug_assert!(v <= card.amount());
             }
+            // Full reset knowledge if new deck is played
             if board.deck_fresh() {
                 self.history = EnumMap::default();
             }
+            // Reset knowledge about hands
             self.hands = [EnumMap::default(); 3];
+            // Update with our own hand
             self.update_with_hand(board.hand(self.observer), self.observer);
+            // Update with announce
             let announce = board.openings();
             let announce_without_observer = [
                 announce[self.observer.next() as usize],
@@ -108,11 +120,14 @@ impl Knowledge {
         for (card, v) in self.history {
             debug_assert!(v <= card.amount(), "{v:?} {card:?} {:?}", card.amount());
         }
+        // Update knowledge after trade
         if matches!(mv.action, TacAction::Trade) {
-            if mv.played_for == self.observer.partner() {
+            // Card we got
+            if player == self.observer.partner() {
                 self.got_traded = Some(mv.card);
                 self.history[mv.card] += 1;
-            } else if mv.played_for == self.observer {
+            // Card we traded
+            } else if player == self.observer {
                 self.traded_away = Some(mv.card);
                 if let CardKnowledgeKind::Exact(x) = self.hands[1][mv.card] {
                     self.hands[1][mv.card] = CardKnowledgeKind::Exact(x + 1);
@@ -140,7 +155,7 @@ impl Knowledge {
         // Previous player discard because they couldn't play anything
         if matches!(mv.action, tac_types::TacAction::Discard)
             && !board.force_discard()
-            && mv.played_for != self.observer
+            && player != self.observer
         {
             // TODO If able to tac previous move but discard instead, we know no tac in hand
             self.discarded_no_balls_in_play(board, player);
@@ -149,15 +164,22 @@ impl Knowledge {
             }
         }
 
-        if matches!(mv.action, TacAction::Devil) && mv.played_for == self.observer {
-            let next = mv.played_for.next();
+        // We played devil so we have perfect knowledge about hand of player after us
+        if matches!(mv.action, TacAction::Devil) && player == self.observer {
+            let next = player.next();
+            assert_eq!(self.idx(next), 0);
+            // Get hand of player after us
             let mut hand = board.hand(next).clone();
+            // If jester was played and card we traded away was not played yet remove card from hand
             if self.played_jester {
                 if let Some(card) = self.traded_away {
                     hand.remove(card);
                 }
             }
+            // Update history with hand next player
+            // TODO this technically does things with knowledge not necessary, look into specializing
             self.update_with_hand(&hand, next);
+            // Make hand knowledge exact
             self.hands[0] = EnumMap::default();
             for c in hand.iter() {
                 self.hands[0][*c] = match self.hands[0][*c] {
@@ -212,7 +234,6 @@ impl Knowledge {
             self.rule_out(Card::Seven, player);
             for c in &[Card::One, Card::Two, Card::Three] {
                 // If no moves available for two or three, rule out aswell
-                // TODO correct play_for
                 if !Board::home_moves_for(home, player, player, *c).is_empty() {
                     self.rule_out(*c, player);
                 }
@@ -244,7 +265,6 @@ impl Knowledge {
             }
         }
         // No four in hand if possible moves but not played
-        // TODO correct play_for
         if !board
             .moves_for_card_squares(board.balls_with(player), player, player, Card::Four)
             .is_empty()

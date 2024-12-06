@@ -5,19 +5,19 @@ use crate::board::Board;
 
 impl Board {
     #[must_use]
-    pub fn get_moves(&self, player: Color) -> Vec<TacMove> {
+    pub fn get_moves(&self, played_by: Color) -> Vec<TacMove> {
         let mut moves = Vec::new();
-        let hand = self.hand(player);
+        let hand = self.hand(played_by);
 
         // If player before us did winning move
         if self.need_trade() && (self.won(Color::Black) || self.won(Color::Blue)) {
             // No moves possible - game is over
             return Vec::new();
         }
-        if self.won(player.prev()) {
+        if self.won(played_by.prev()) {
             // If we have tac see if we are able to use it to prevent win
-            if self.hand(player).contains(Card::Tac) {
-                return self.tac_moves(player);
+            if self.hand(played_by).contains(Card::Tac) {
+                return self.tac_moves(played_by);
             }
             // No moves possible - game is over
             return Vec::new();
@@ -25,7 +25,7 @@ impl Board {
         // If in trade phase trade move for every card in hand
         if self.need_trade() {
             for card in hand.iter().sorted().dedup() {
-                moves.push(TacMove::new(*card, TacAction::Trade, player, player));
+                moves.push(TacMove::new(*card, TacAction::Trade, played_by, played_by));
             }
             return moves;
         }
@@ -33,23 +33,33 @@ impl Board {
         // If we are forced to discard, either respond with tac or discard any card in hand
         if self.force_discard() {
             if hand.iter().any(|c| matches!(c, Card::Tac)) {
-                moves.extend(self.tac_moves(self.play_for(player)));
+                moves.extend(self.tac_moves(played_by));
             }
             for card in hand.iter().sorted().dedup() {
-                moves.push(TacMove::new(*card, TacAction::Discard, player, player));
+                moves.push(TacMove::new(
+                    *card,
+                    TacAction::Discard,
+                    played_by,
+                    played_by,
+                ));
             }
             return moves;
         }
 
         // Compute moves for each card in hand
         for card in hand.iter().sorted().dedup() {
-            moves.extend(self.moves_for_card(player, *card));
+            moves.extend(self.moves_for_card(played_by, *card));
         }
 
         // We can't do anything so discard any card
         if moves.is_empty() {
             for card in hand.iter().sorted().dedup() {
-                moves.push(TacMove::new(*card, TacAction::Discard, player, player));
+                moves.push(TacMove::new(
+                    *card,
+                    TacAction::Discard,
+                    played_by,
+                    played_by,
+                ));
             }
         }
 
@@ -58,16 +68,16 @@ impl Board {
 
     #[must_use]
     #[allow(clippy::too_many_lines)]
-    pub fn moves_for_card(&self, player: Color, card: Card) -> Vec<TacMove> {
-        let play_for = self.play_for(player);
-        let play_for_next = self.play_for(player.next());
+    pub fn moves_for_card(&self, played_by: Color, card: Card) -> Vec<TacMove> {
+        let play_for = self.play_for(played_by);
+        let play_for_next = self.play_for(played_by.next());
         let can_play = self.can_play(play_for);
         let mut moves = Vec::new();
         match card {
             Card::One | Card::Thirteen => {
                 // If we still have balls in base, we can put them on the board
                 if self.num_base(play_for) > 0 {
-                    moves.push(TacMove::new(card, TacAction::Enter, play_for, player));
+                    moves.push(TacMove::new(card, TacAction::Enter, play_for, played_by));
                 }
             }
             Card::Seven => {
@@ -75,46 +85,56 @@ impl Board {
                 // Consider special casing them so move evaluation can prune them effectively with expert knowledge
                 if (!self.home(play_for).is_empty() && !self.home(play_for).is_locked()) || can_play
                 {
-                    return self.seven_moves(play_for);
+                    return self.seven_moves(played_by);
                 }
             }
             Card::Eight => {
-                if can_play && !self.hand(player.next()).is_empty() {
-                    moves.push(TacMove::new(card, TacAction::Suspend, player, player));
+                if can_play && !self.hand(played_by.next()).is_empty() {
+                    moves.push(TacMove::new(card, TacAction::Suspend, played_by, played_by));
                 }
             }
             Card::Trickster => {
                 if can_play {
-                    return self.trickster_moves(player, play_for);
+                    return self.trickster_moves(played_by, play_for);
                 }
             }
             Card::Jester => {
-                return vec![TacMove::new(card, TacAction::Jester, player, player)];
+                return vec![TacMove::new(card, TacAction::Jester, played_by, played_by)];
             }
             Card::Angel => {
                 // If player after us still has balls out of play
                 if self.num_base(play_for_next) > 0 {
-                    moves.push(TacMove::new(card, TacAction::Enter, play_for_next, player));
+                    moves.push(TacMove::new(
+                        card,
+                        TacAction::Enter,
+                        play_for_next,
+                        played_by,
+                    ));
                 } else {
                     let balls = self.balls_with(play_for_next);
                     moves.extend(
-                        self.moves_for_card_squares(balls, player, play_for_next, Card::One)
+                        self.moves_for_card_squares(balls, played_by, play_for_next, Card::One)
                             .into_iter()
-                            .map(|e| TacMove::new(Card::Angel, e.action, play_for_next, player)),
+                            .map(|e| TacMove::new(Card::Angel, e.action, play_for_next, played_by)),
                     );
                     moves.extend(
-                        self.moves_for_card_squares(balls, player, play_for_next, Card::Thirteen)
-                            .into_iter()
-                            .map(|e| TacMove::new(Card::Angel, e.action, play_for_next, player)),
+                        self.moves_for_card_squares(
+                            balls,
+                            played_by,
+                            play_for_next,
+                            Card::Thirteen,
+                        )
+                        .into_iter()
+                        .map(|e| TacMove::new(Card::Angel, e.action, play_for_next, played_by)),
                     );
                 }
                 return moves;
             }
             Card::Devil => {
-                return vec![TacMove::new(card, TacAction::Devil, play_for, player)];
+                return vec![TacMove::new(card, TacAction::Devil, played_by, played_by)];
             }
             Card::Tac => {
-                return self.tac_moves(play_for);
+                return self.tac_moves(played_by);
             }
             _ => {}
         }
@@ -125,7 +145,7 @@ impl Board {
         if !self.home(play_for).is_empty() && !self.home(play_for).is_locked() {
             moves.extend(Self::home_moves_for(
                 *self.home(play_for),
-                player,
+                played_by,
                 play_for,
                 card,
             ));
@@ -136,7 +156,7 @@ impl Board {
         if can_play {
             moves.extend(self.moves_for_card_squares(
                 self.balls_with(play_for),
-                player,
+                played_by,
                 play_for,
                 card,
             ));
@@ -145,7 +165,12 @@ impl Board {
     }
 
     #[must_use]
-    pub fn home_moves_for(home: Home, player: Color, play_for: Color, card: Card) -> Vec<TacMove> {
+    pub fn home_moves_for(
+        home: Home,
+        played_by: Color,
+        play_for: Color,
+        card: Card,
+    ) -> Vec<TacMove> {
         let mut moves = Vec::new();
         match card {
             Card::One => match home.0 {
@@ -153,32 +178,32 @@ impl Board {
                     card,
                     TacAction::StepHome { from: 0, to: 1 },
                     play_for,
-                    player,
+                    played_by,
                 )),
                 0b0010 | 0b1010 | 0b0011 | 0b1011 => moves.push(TacMove::new(
                     card,
                     TacAction::StepHome { from: 1, to: 2 },
                     play_for,
-                    player,
+                    played_by,
                 )),
                 0b0100 | 0b0110 | 0b0111 => moves.push(TacMove::new(
                     card,
                     TacAction::StepHome { from: 2, to: 3 },
                     play_for,
-                    player,
+                    played_by,
                 )),
                 0b0101 => {
                     moves.push(TacMove::new(
                         card,
                         TacAction::StepHome { from: 0, to: 1 },
                         play_for,
-                        player,
+                        played_by,
                     ));
                     moves.push(TacMove::new(
                         card,
                         TacAction::StepHome { from: 2, to: 3 },
                         play_for,
-                        player,
+                        played_by,
                     ));
                 }
                 _ => {}
@@ -189,7 +214,7 @@ impl Board {
                         card,
                         TacAction::StepHome { from: 0, to: 2 },
                         play_for,
-                        player,
+                        played_by,
                     ));
                 }
                 0b0010 | 0b0011 => {
@@ -197,7 +222,7 @@ impl Board {
                         card,
                         TacAction::StepHome { from: 1, to: 3 },
                         play_for,
-                        player,
+                        played_by,
                     ));
                 }
                 _ => {}
@@ -208,7 +233,7 @@ impl Board {
                         card,
                         TacAction::StepHome { from: 0, to: 3 },
                         play_for,
-                        player,
+                        played_by,
                     ));
                 }
             }
@@ -221,7 +246,7 @@ impl Board {
     pub fn moves_for_card_squares(
         &self,
         squares: BitBoard,
-        player: Color,
+        played_by: Color,
         play_for: Color,
         card: Card,
     ) -> Vec<TacMove> {
@@ -237,7 +262,7 @@ impl Board {
                             to: start.add(amount),
                         },
                         play_for,
-                        player,
+                        played_by,
                     ));
                 }
                 // Need to add here in case there is ball on home square
@@ -253,7 +278,7 @@ impl Board {
                                 to: goal_pos,
                             },
                             play_for,
-                            player,
+                            played_by,
                         ));
                     }
                 }
@@ -270,7 +295,7 @@ impl Board {
                                 to: start.add(60),
                             },
                             play_for,
-                            player,
+                            played_by,
                         ));
                     }
 
@@ -284,7 +309,7 @@ impl Board {
                             card,
                             TacAction::StepInHome { from: start, to: 4 },
                             play_for,
-                            player,
+                            played_by,
                         ));
                     } else if free > 0 // Goal needs to be free
                     && min_rev_dist + free > 4 // Enough space to move in
@@ -299,7 +324,7 @@ impl Board {
                                 to: goal,
                             },
                             play_for,
-                            player,
+                            played_by,
                         ));
                     }
                 }
@@ -311,7 +336,7 @@ impl Board {
                             to: self.warrior_target(start, play_for),
                         },
                         play_for,
-                        player,
+                        played_by,
                     ));
                 }
                 _ => {}
@@ -322,7 +347,7 @@ impl Board {
 
     #[must_use]
     #[allow(clippy::missing_panics_doc)]
-    pub fn trickster_moves(&self, player: Color, play_for: Color) -> Vec<TacMove> {
+    pub fn trickster_moves(&self, played_by: Color, play_for: Color) -> Vec<TacMove> {
         // At most n choose 2 -> n * (n-1) / 2
         // This only gets called if there are balls on the board so the length can never be 0
         let mut moves =
@@ -357,7 +382,7 @@ impl Board {
                     Card::Trickster,
                     TacAction::Trickster { target1, target2 },
                     play_for,
-                    player,
+                    played_by,
                 ));
             }
         }
@@ -380,7 +405,7 @@ impl Board {
     }
 
     #[must_use]
-    pub fn tac_moves(&self, player: Color) -> Vec<TacMove> {
+    pub fn tac_moves(&self, played_by: Color) -> Vec<TacMove> {
         let mut moves = Vec::new();
 
         if let Some((last_move, _)) = self.past_moves().iter().rev().find(|&(c, _)| {
@@ -390,7 +415,7 @@ impl Board {
             state.tac_undo();
             moves.extend(
                 state
-                    .moves_for_card(player, last_move.card)
+                    .moves_for_card(played_by, last_move.card)
                     .into_iter()
                     .map(|m| TacMove::new(Card::Tac, m.action, m.played_for, m.played_by)),
             );

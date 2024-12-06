@@ -97,7 +97,11 @@ pub struct TacMove {
 
 impl Display for TacMove {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?} {} {:?}", self.card, self.action, self.played_for)
+        write!(
+            f,
+            "{:?} {} {:?} {:?}",
+            self.card, self.action, self.played_for, self.played_by
+        )
     }
 }
 

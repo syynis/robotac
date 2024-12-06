@@ -35,10 +35,11 @@ impl Board {
     pub(crate) fn seven_moves(&self, player: Color) -> Vec<TacMove> {
         // TODO Some thoughts about generating seven moves
         // This still needs to take into account moves that go from ring to home
+        let play_for = self.play_for(player);
         let mut moves = Vec::new();
-        let num_balls = self.balls_with(player).len();
-        let home = *self.home(player);
-        let balls_bb = self.balls_with(player);
+        let num_balls = self.balls_with(play_for).len();
+        let home = *self.home(play_for);
+        let balls_bb = self.balls_with(play_for);
         let can_move_home = !(home.is_locked() || home.is_empty());
         let max_home = if can_move_home { 8 } else { 1 };
         let budget_start = if num_balls > 0 { 0 } else { 7 };
@@ -63,8 +64,8 @@ impl Board {
                     TacMove::new(
                         Card::Seven,
                         TacAction::SevenSteps { steps },
+                        play_for,
                         player,
-                        self.play_for(player),
                     )
                 }));
                 return moves;
@@ -99,7 +100,7 @@ impl Board {
                         // Easy case. Budget is distance to home + 1
                         1 => {
                             for (action, b, budget) in
-                                moves_for_budget(balls_bb, board_budget, 0, player)
+                                moves_for_budget(balls_bb, board_budget, 0, play_for)
                             {
                                 step_in_home_moves.push((
                                     [home_mvs.clone(), vec![action]].concat(),
@@ -123,7 +124,7 @@ impl Board {
                                     continue;
                                 }
                                 for (action1, b1, budget1) in
-                                    moves_for_budget(balls_bb, budget, goal, player)
+                                    moves_for_budget(balls_bb, budget, goal, play_for)
                                 {
                                     // If we can move in home, we are wasting with home moves already
                                     let to_waste = if can_move_home { 0 } else { budget1 };
@@ -143,7 +144,7 @@ impl Board {
                                                 balls_bb ^ b1.bitboard(),
                                                 remaining_budget,
                                                 goal2,
-                                                player,
+                                                play_for,
                                             ) {
                                                 step_in_home_moves.push((
                                                     [
@@ -273,8 +274,8 @@ impl Board {
                 TacMove::new(
                     Card::Seven,
                     TacAction::SevenSteps { steps },
+                    play_for,
                     player,
-                    self.play_for(player),
                 )
             }));
         }
