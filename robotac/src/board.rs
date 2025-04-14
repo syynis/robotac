@@ -24,7 +24,6 @@ pub struct Board {
     balls: [BitBoard; 4],
     player_to_move: Color,
     homes: [Home; 4],
-    base: [u8; 4],
     fresh: [bool; 4],
     discard_flag: bool,
     jester_flag: bool,
@@ -34,6 +33,7 @@ pub struct Board {
     deck_fresh_flag: bool,
     deck: Deck,
     discarded: Vec<Card>,
+    // TODO can be removed
     past_moves: ArrayDeque<(TacMove, Option<TacMoveResult>), PAST_MOVES_LEN, Wrapping>,
     hands: [Hand; 4],
     traded: [Option<Card>; 4],
@@ -41,6 +41,9 @@ pub struct Board {
     pub move_count: u32,
     seed: u64,
     started: Color,
+    previous_balls: [BitBoard; 4],
+    previous_homes: [Home; 4],
+    previous_fresh: [bool; 4],
 }
 
 #[allow(dead_code)]
@@ -109,7 +112,6 @@ impl Board {
             balls: [BitBoard::EMPTY; 4],
             player_to_move: Color::Black,
             homes: [Home::EMPTY; 4],
-            base: [4; 4],
             fresh: [true; 4],
             discard_flag: false,
             jester_flag: false,
@@ -126,6 +128,9 @@ impl Board {
             move_count: 0,
             seed,
             started: Color::Black,
+            previous_balls: [BitBoard::EMPTY; 4],
+            previous_homes: [Home::EMPTY; 4],
+            previous_fresh: [true; 4],
         };
 
         s.deal_new();
@@ -135,11 +140,9 @@ impl Board {
     /// Captures any ball that was on the starting position.
     #[must_use]
     pub fn put_ball_in_play(&mut self, color: Color) -> Option<Color> {
+        assert!(self.num_base(color) != 0);
         let capture = self.capture(color.home());
         self.set(color.home(), color);
-        // Don't need to check for underflow here
-        debug_assert_ne!(self.base[color as usize], 0);
-        self.base[color as usize] -= 1;
         capture
     }
 
@@ -147,7 +150,6 @@ impl Board {
     /// Captures any ball that was on the `end`.
     #[must_use]
     pub fn move_ball(&mut self, start: Square, end: Square, color: Color) -> Option<Color> {
-        // Need to capture first in case color on start and end is the same
         let capture = self.capture(end);
         self.unset(start, color);
         self.set(end, color);
@@ -178,14 +180,20 @@ impl Board {
     }
 
     /// Toggles the state of a square for a given player.
-    pub(crate) fn xor(&mut self, square: Square, color: Color) {
-        self.balls[color as usize] ^= square.bitboard();
+    pub(crate) fn xor(&mut self, square: impl Into<Square>, color: Color) {
+        self.balls[color as usize] ^= square.into().bitboard();
     }
 
     /// Sets square to given color
     /// This is a wrapper around xor with an assert that the square is empty
     pub fn set(&mut self, square: Square, color: Color) {
-        debug_assert!(self.color_on(square).is_none());
+        debug_assert!(
+            self.color_on(square).is_none(),
+            "{:?} {:?} {:?}",
+            square,
+            self.color_on(square),
+            color,
+        );
         self.xor(square, color);
     }
 
@@ -218,7 +226,6 @@ impl Board {
     pub fn capture(&mut self, target: Square) -> Option<Color> {
         let color = self.color_on(target)?;
         self.unset(target, color);
-        self.base[color as usize] += 1;
         Some(color)
     }
 
@@ -249,7 +256,8 @@ impl Board {
     /// Returns the amount of balls from a given player not in play.
     #[must_use]
     pub fn num_base(&self, color: Color) -> u8 {
-        self.base[color as usize]
+        4 - self.home(color).amount() - self.balls_with(color).len() as u8
+        // self.base[color as usize]
     }
 
     /// Returns the `Home` of a given player.
@@ -382,14 +390,6 @@ impl Board {
         self.started_flag = false;
         self.deck_fresh_flag = false;
         let player = self.player_to_move;
-        if matches!(mv.card, Card::Tac)
-            && !matches!(
-                mv.action,
-                TacAction::Discard | TacAction::Trade | TacAction::Jester
-            )
-        {
-            self.tac_undo();
-        }
         if matches!(mv.action, TacAction::Trade) {
             self.trade(mv.card, player);
             if self.traded.iter().all(Option::is_some) {
@@ -397,6 +397,15 @@ impl Board {
             };
             self.next_player();
         } else {
+            let current_balls = self.balls.clone();
+            let current_homes = self.homes.clone();
+            let current_fresh = self.fresh.clone();
+            if matches!(mv.card, Card::Tac)
+                && !matches!(mv.action, TacAction::Discard | TacAction::Jester)
+            {
+                assert!(!matches!(mv.action, TacAction::Trade));
+                self.tac_undo();
+            }
             let could_be_removed = self.hands[player as usize].remove(mv.card);
             if !could_be_removed {
                 println!("{self:?}");
@@ -409,6 +418,11 @@ impl Board {
             self.discarded.push(mv.card);
             let captured = self.apply_action(mv.action.clone(), mv.played_for);
             self.past_moves.push_back((mv.clone(), captured));
+            if !matches!(mv.action, TacAction::Jester) {
+                self.previous_balls = current_balls;
+                self.previous_homes = current_homes;
+                self.previous_fresh = current_fresh;
+            }
 
             if self.hands.iter().all(Hand::is_empty) {
                 debug_assert!(!self.discard_flag);
@@ -428,7 +442,7 @@ impl Board {
                     + self.home(c).amount() as usize
                     + self.num_base(c) as usize,
                 4,
-                "{:?} {:?} {:?} {:?} {:?}\n",
+                "{:?} {:?} {:?} {:?}\n{:?}\n",
                 c,
                 self.balls_with(c).len(),
                 self.home(c).amount(),
@@ -463,6 +477,13 @@ impl Board {
                     };
                 }
 
+                struct Data {
+                    orig: Square,
+                    start: Square,
+                    end: Square,
+                    goal: Option<u8>,
+                    in_home: bool,
+                }
                 // Order steps to prevent capturing of balls that have to move
                 let mut board_steps = steps
                     .iter()
@@ -483,7 +504,36 @@ impl Board {
                         }
                     })
                     .collect_vec();
+                fn in_range(start: u8, end: u8, x: u8) -> bool {
+                    if start < end {
+                        (start..=end).contains(&x)
+                    } else {
+                        (start..=63).contains(&x) || (0..=end).contains(&x)
+                    }
+                }
                 let mut res: SmallVec<(Square, Color), 7> = SmallVec::new();
+                board_steps = board_steps
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(idx, (o, s, e, g, h))| {
+                        if board_steps
+                            .iter()
+                            .enumerate()
+                            .any(|(idx2, (_, s2, e2, _, _))| {
+                                idx != idx2
+                                    && in_range(s2.0, e2.0, s.0)
+                                    && in_range(s2.0, e2.0, e.0)
+                            })
+                        {
+                            let x = self.capture(*s);
+                            assert!(x.is_some());
+                            res.push((*s, player));
+                            None
+                        } else {
+                            Some((*o, *s, *e, *g, *h))
+                        }
+                    })
+                    .collect_vec();
                 let mut change = true;
                 while change {
                     change = false;
@@ -512,27 +562,6 @@ impl Board {
                 if res.is_empty() {
                     return None;
                 }
-                let res = res
-                    .iter()
-                    .map(|(sq, c)| {
-                        (
-                            // If captured ball is same color as moving player,
-                            // adjust it in case it moved before being captured
-                            // TODO Maybe move this above because this doesnt handle, balls that didnt move
-                            if *c == player {
-                                board_steps
-                                    .iter()
-                                    .find_map(|(orig, s, _, _, in_home)| {
-                                        (!in_home && *sq == *s).then_some(*orig)
-                                    })
-                                    .unwrap_or(*sq)
-                            } else {
-                                *sq
-                            },
-                            *c,
-                        )
-                    })
-                    .collect_vec();
                 return Some(TacMoveResult::SevenCaptures(res.into()));
             }
             TacAction::Warrior { from, to } => {
@@ -546,154 +575,12 @@ impl Board {
         None
     }
 
-    pub fn undo_action(
-        &mut self,
-        action: TacAction,
-        player: Color,
-        captured: Option<TacMoveResult>,
-    ) {
-        match action {
-            TacAction::Step { from, to } => {
-                self.set(from, player);
-                self.unset(to, player);
-                if let Some(TacMoveResult::Capture(captured)) = captured {
-                    self.base[captured as usize] -= 1;
-                    self.set(to, captured);
-                }
-            }
-            TacAction::StepHome { from, to } => self.move_ball_in_goal(to, from, player),
-            TacAction::StepInHome { from, to } => {
-                self.set(from, player);
-                self.homes[player as usize].unset(to);
-            }
-            TacAction::Trickster { target1, target2 } => self.swap_balls(target1, target2),
-            TacAction::Enter => {
-                self.unset(player.home(), player);
-                self.base[player as usize] += 1;
-                if let Some(TacMoveResult::Capture(captured)) = captured {
-                    self.base[captured as usize] -= 1;
-                    self.set(player.home(), captured);
-                }
-            }
-            TacAction::Suspend => self.discard_flag = false,
-            TacAction::Jester | TacAction::Devil | TacAction::Discard => {}
-            TacAction::Warrior { from, to } => {
-                if let TacMoveResult::Capture(captured) = captured.expect("Warrior always captures")
-                {
-                    self.base[captured as usize] -= 1;
-                    if from == to {
-                        debug_assert_eq!(player, captured);
-                        self.set(from, player);
-                    } else {
-                        self.unset(to, player);
-                        self.set(to, captured);
-                        self.set(from, player);
-                    }
-                }
-            }
-            TacAction::SevenSteps { steps } => {
-                // We have to do undoing for step and step home in two steps
-                // This is because different two steps could share the same square as
-                // their start or end square respectively
-
-                // Store the start positions of self captured balls to handle seperately
-                // after removing balls from their end position
-                for s in &steps {
-                    match s {
-                        TacAction::Step { to, .. } => {
-                            if self.balls_with(player).has(*to) {
-                                self.unset(*to, player);
-                            }
-                        }
-                        TacAction::StepHome { to, .. } | TacAction::StepInHome { to, .. } => {
-                            self.homes[player as usize].unset(*to);
-                        }
-                        _ => unreachable!(),
-                    }
-                }
-
-                let mut moved = Vec::new();
-                for s in steps.into_iter() {
-                    match s {
-                        TacAction::Step { from, .. } => {
-                            self.set(from, player);
-                            moved.push(from);
-                        }
-                        TacAction::StepInHome { from, .. } => {
-                            self.set(from, player);
-                            moved.push(from);
-                        }
-                        TacAction::StepHome { from, .. } => self.homes[player as usize].set(from),
-                        _ => unreachable!(),
-                    }
-                }
-                if let Some(TacMoveResult::SevenCaptures(captures)) = captured {
-                    for (square, color) in captures {
-                        // color == player already handled above
-                        self.base[color as usize] -= 1;
-                        if color != player {
-                            self.set(square, color);
-                        } else if !moved.contains(&square) {
-                            self.set(square, color);
-                        }
-                    }
-                }
-            }
-            TacAction::Trade => unreachable!("Can't undo trading"),
-        }
-    }
-
-    /// Undo last move played according
+    /// Undo to last state
     pub fn tac_undo(&mut self) {
-        // TODO this doesnt handle skipping jester if it wasnt discarded
-        let mut stored = Vec::new();
-        while let Some((mv, captured)) = self.past_moves.pop_back() {
-            stored.push((mv.clone(), captured));
-            if !(matches!(mv.action, TacAction::Jester)) {
-                break;
-            }
-        }
-        // let (mv, captured) = self
-        //     .past_moves
-        //     .pop_back() // Pop here so recursive tac works
-        //     .expect("Undo only ever called with past_moves non-empty");
-        // TODO handle play for here
-        let (mv, captured) = stored.last().unwrap();
-        self.undo_action(mv.action.clone(), mv.played_for, captured.clone());
-        if matches!(mv.card, Card::Tac) {
-            self.tac_undo_recursive(
-                (!matches!(mv.action, TacAction::Discard)).then_some(true),
-                self.player_to_move.prev(),
-            );
-        }
-        // Push back when we are done
-        for e in stored {
-            self.past_moves.push_back(e);
-        }
-    }
-
-    fn tac_undo_recursive(&mut self, redo: Option<bool>, player: Color) {
-        let (mv, captured) = self
-            .past_moves
-            .pop_back() // Pop here so recursive tac works
-            .expect("Undo only ever called with past_moves non-empty");
-        if let Some(redo) = redo {
-            if redo {
-                self.apply_action(mv.action.clone(), mv.played_for);
-            } else {
-                self.undo_action(mv.action.clone(), mv.played_for, captured.clone());
-            }
-        }
-
-        if matches!(mv.card, Card::Tac) {
-            if let Some(redo) = redo {
-                self.tac_undo_recursive(Some(!redo), player.prev());
-            } else {
-                self.tac_undo_recursive(None, player.prev());
-            }
-        }
-        // Push back when we are done
-        self.past_moves.push_back((mv, captured));
+        self.discard_flag = false;
+        std::mem::swap(&mut self.balls, &mut self.previous_balls);
+        std::mem::swap(&mut self.homes, &mut self.previous_homes);
+        std::mem::swap(&mut self.fresh, &mut self.previous_fresh);
     }
 
     /// Set card to be traded
@@ -847,6 +734,16 @@ impl Board {
     pub fn add_hand(&mut self, player: Color, card: Card) {
         self.hands[player as usize].0.push(card);
     }
+
+    pub fn print_balls(&self) {
+        for (idx, ball) in self.all_balls().iter().enumerate() {
+            if idx % 8 == 0 {
+                println!();
+            }
+            print!("({}, {:?}), ", ball.0, self.color_on(ball).unwrap());
+        }
+        println!();
+    }
 }
 
 impl std::fmt::Debug for Board {
@@ -867,10 +764,6 @@ impl std::fmt::Debug for Board {
         write!(f, "\nhomes: ")?;
         for home in self.homes {
             write!(f, "{:#b}, ", home.0)?;
-        }
-        write!(f, "\nbase: ")?;
-        for base in self.base {
-            write!(f, "{base}, ")?;
         }
         write!(f, "\n1/13: ")?;
         for one_or_thirteen in self.one_or_thirteen {
@@ -923,5 +816,114 @@ mod tests {
         for i in 3..13u8 {
             assert!(!board.can_move(Square(10), Square(10).add(i)));
         }
+    }
+
+    #[test]
+    fn selfcapture() {
+        use Color::*;
+        use TacAction::*;
+        let mut board = Board::new();
+        board.xor(0, Black);
+        board.xor(7, Black);
+        board.add_hand(Black, Card::Seven);
+        board.add_hand(Blue, Card::Tac);
+        let black_move = TacMove::new(
+            Card::Seven,
+            TacAction::SevenSteps {
+                steps: vec![Step {
+                    from: Square(0),
+                    to: Square(7),
+                }],
+            },
+            Black,
+            Black,
+        );
+        board.play(&black_move);
+        println!("{:?}", board.moves_for_card(Blue, Card::Tac));
+        println!("{board:?}");
+    }
+    #[test]
+    fn seven_undo_bug() {
+        use Color::*;
+        use TacAction::*;
+        let mut board = Board::new();
+        board.xor(0, Black);
+        board.xor(3, Green);
+        board.xor(10, Green);
+        board.xor(28, Red);
+        board.xor(34, Green);
+        board.xor(46, Green);
+        board.xor(60, Red);
+        board.xor(61, Red);
+        board.xor(62, Black);
+
+        board.homes[Black as usize].set(0);
+
+        board.player_to_move = Green;
+
+        board.add_hand(Green, Card::Seven);
+        board.add_hand(Red, Card::Tac);
+        board.add_hand(Black, Card::Tac);
+        board.add_hand(Blue, Card::Tac);
+        let green_move = TacMove::new(
+            Card::Seven,
+            TacAction::SevenSteps {
+                steps: vec![
+                    Step {
+                        from: Square(3),
+                        to: Square(5),
+                    },
+                    Step {
+                        from: Square(10),
+                        to: Square(12),
+                    },
+                    Step {
+                        from: Square(34),
+                        to: Square(35),
+                    },
+                    Step {
+                        from: Square(46),
+                        to: Square(48),
+                    },
+                ],
+            },
+            Green,
+            Green,
+        );
+        let red_move = TacMove::new(
+            Card::Tac,
+            TacAction::SevenSteps {
+                steps: vec![Step {
+                    from: Square(60),
+                    to: Square(3),
+                }],
+            },
+            Red,
+            Red,
+        );
+        let black_move = TacMove::new(
+            Card::Tac,
+            TacAction::SevenSteps {
+                steps: vec![
+                    Step {
+                        from: Square(0),
+                        to: Square(1),
+                    },
+                    StepHome { from: 0, to: 1 },
+                    StepInHome {
+                        from: Square(62),
+                        to: 0,
+                    },
+                ],
+            },
+            Black,
+            Black,
+        );
+
+        board.play(&green_move);
+        board.play(&red_move);
+        board.play(&black_move);
+        println!("{board:?}");
+        println!("{:?}", board.moves_for_card(Blue, Card::Tac));
     }
 }

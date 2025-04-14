@@ -407,19 +407,12 @@ mod tests {
                     // Game over
                     break;
                 };
-                // if seed == 5 && i == 697 {
-                // if seed == 58 && i == 844 {
-                // if seed == 7 && i == 844 {
-                // if seed == 73 && i == 100 {
-                if seed == 123 && i == 1776 {
-                    println!("{board:?}");
-                }
                 println!("{i}: {mv}");
                 for k in &mut know {
                     k.update_with_move(mv, &board);
                 }
                 board.make_move(mv);
-                if seed == 7 && i == 844 {
+                if seed == 267 && i == 1344 {
                     println!("{board:?}");
                 }
             }

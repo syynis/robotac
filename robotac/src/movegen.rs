@@ -409,7 +409,8 @@ impl Board {
         let mut moves = Vec::new();
 
         if let Some((last_move, _)) = self.past_moves().iter().rev().find(|&(c, _)| {
-            !(matches!(c.card, Card::Tac) || (matches!(c.card, Card::Jester) && self.jester_flag()))
+            !(matches!(c.card, Card::Tac)
+                || (matches!(c.card, Card::Jester) && matches!(c.action, TacAction::Jester)))
         }) {
             let mut state = self.clone();
             state.tac_undo();
@@ -419,6 +420,7 @@ impl Board {
                     .into_iter()
                     .map(|m| TacMove::new(Card::Tac, m.action, m.played_for, m.played_by)),
             );
+            state.tac_undo();
         }
 
         moves
@@ -564,7 +566,7 @@ mod tests {
             moves[0],
             TacMove::new(
                 Card::Warrior,
-                TacAction::Step {
+                TacAction::Warrior {
                     from: Color::Black.home(),
                     to: Color::Red.home()
                 },
@@ -580,7 +582,7 @@ mod tests {
             moves[0],
             TacMove::new(
                 Card::Warrior,
-                TacAction::Step {
+                TacAction::Warrior {
                     from: Color::Red.home(),
                     to: Color::Red.home()
                 },
@@ -622,5 +624,6 @@ mod tests {
         assert_eq!(board.color_on(Color::Blue.home()).unwrap(), Color::Blue);
         assert_eq!(board.color_on(Color::Green.home()), None);
         assert_eq!(board.color_on(Color::Red.home()).unwrap(), Color::Red);
+        println!("{board:?}");
     }
 }
