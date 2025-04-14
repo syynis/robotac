@@ -4,20 +4,11 @@ use std::{
     option::Option,
 };
 
-use arraydeque::{ArrayDeque, Wrapping};
 use itertools::Itertools;
 use rand::{rngs::StdRng, SeedableRng};
-use smallvec::SmallVec;
-use tac_types::{
-    BitBoard, Card, Color, Deck, Hand, Home, Square, TacAction, TacMove, TacMoveResult, ALL_COLORS,
-};
+use tac_types::{BitBoard, Card, Color, Deck, Hand, Home, Square, TacAction, TacMove, ALL_COLORS};
 
 use crate::knowledge::Knowledge;
-
-// This is is choosen because the situation which needs the most lookup into past is:
-// Card - Jester - Tac - Tac - Tac - Tac - Tac
-// These are seven cards but we up it to eight so it's a power of two. The performance impact of this decision has not been measured
-const PAST_MOVES_LEN: usize = 8;
 
 #[derive(Clone)]
 pub struct Board {
@@ -33,8 +24,7 @@ pub struct Board {
     deck_fresh_flag: bool,
     deck: Deck,
     discarded: Vec<Card>,
-    // TODO can be removed
-    past_moves: ArrayDeque<(TacMove, Option<TacMoveResult>), PAST_MOVES_LEN, Wrapping>,
+    last_move: Option<TacMove>,
     hands: [Hand; 4],
     traded: [Option<Card>; 4],
     one_or_thirteen: [bool; 4],
@@ -76,14 +66,7 @@ pub struct PackedBoard {
     deck: Deck,
     // 24 u8, could be smallvec
     discarded: Vec<Card>,
-    past_moves: ArrayDeque<
-        (
-            tac_types::PackedTacMove,
-            Option<tac_types::PackedTacMoveResult>,
-        ),
-        PAST_MOVES_LEN,
-        Wrapping,
-    >,
+    last_move: Option<tac_types::PackedTacMove>,
     // 1 card -> u8, 6 cards in hand -> 48 bits -> u64
     // 1 card could be 5 bits so 6 cards -> 30 bits -> u32
     // would be 96 bytes -> 16 (u32) or 32 (u64) bytes
@@ -121,7 +104,7 @@ impl Board {
             deck_fresh_flag: false,
             deck: Deck::default(),
             discarded: Vec::new(),
-            past_moves: ArrayDeque::new(),
+            last_move: None,
             hands: [const { Vec::new() }; 4].map(Hand::new),
             traded: [None; 4],
             one_or_thirteen: [false; 4],
@@ -257,7 +240,6 @@ impl Board {
     #[must_use]
     pub fn num_base(&self, color: Color) -> u8 {
         4 - self.home(color).amount() - self.balls_with(color).len() as u8
-        // self.base[color as usize]
     }
 
     /// Returns the `Home` of a given player.
@@ -283,23 +265,6 @@ impl Board {
     #[must_use]
     pub fn force_discard(&self) -> bool {
         self.discard_flag
-    }
-
-    /// Returns `true` if the previous player was forced to discarded a card.
-    #[must_use]
-    pub fn was_force_discard(&self) -> bool {
-        let len = self.past_moves.len();
-        if len < 2 {
-            return false;
-        }
-        // Last move discard and move before suspend
-        self.past_moves
-            .back()
-            .map_or(false, |(mv, _)| matches!(mv.action, TacAction::Discard))
-            && self
-                .past_moves
-                .get(len - 2)
-                .map_or(false, |(mv, _)| matches!(mv.action, TacAction::Suspend))
     }
 
     /// Returns `true` if new round start.
@@ -342,10 +307,8 @@ impl Board {
 
     /// Returns past moves
     #[must_use]
-    pub fn past_moves(
-        &self,
-    ) -> &ArrayDeque<(TacMove, Option<TacMoveResult>), PAST_MOVES_LEN, Wrapping> {
-        &self.past_moves
+    pub fn last_move(&self) -> Option<&TacMove> {
+        self.last_move.as_ref()
     }
 
     /// Returns `true` if the there is no ball between `start` and `goal`.
@@ -397,9 +360,9 @@ impl Board {
             };
             self.next_player();
         } else {
-            let current_balls = self.balls.clone();
-            let current_homes = self.homes.clone();
-            let current_fresh = self.fresh.clone();
+            let current_balls = self.balls;
+            let current_homes = self.homes;
+            let current_fresh = self.fresh;
             if matches!(mv.card, Card::Tac)
                 && !matches!(mv.action, TacAction::Discard | TacAction::Jester)
             {
@@ -416,8 +379,12 @@ impl Board {
                 );
             }
             self.discarded.push(mv.card);
-            let captured = self.apply_action(mv.action.clone(), mv.played_for);
-            self.past_moves.push_back((mv.clone(), captured));
+            self.apply_action(mv.action.clone(), mv.played_for);
+            if !(matches!(mv.card, Card::Tac)
+                || (matches!(mv.card, Card::Jester) && matches!(mv.action, TacAction::Jester)))
+            {
+                self.last_move = Some(mv.clone());
+            }
             if !matches!(mv.action, TacAction::Jester) {
                 self.previous_balls = current_balls;
                 self.previous_homes = current_homes;
@@ -427,7 +394,7 @@ impl Board {
             if self.hands.iter().all(Hand::is_empty) {
                 debug_assert!(!self.discard_flag);
                 self.deal_new();
-                self.past_moves.clear();
+                self.last_move.take();
                 self.discarded.clear();
                 self.player_to_move = self.started.next();
                 self.started = self.player_to_move;
@@ -452,15 +419,17 @@ impl Board {
         }
     }
 
-    pub fn apply_action(&mut self, action: TacAction, player: Color) -> Option<TacMoveResult> {
+    pub fn apply_action(&mut self, action: TacAction, player: Color) {
         match action {
             TacAction::Step { from, to } => {
-                return self.move_ball(from, to, player).map(TacMoveResult::Capture)
+                let _ = self.move_ball(from, to, player);
             }
             TacAction::StepHome { from, to } => self.move_ball_in_goal(from, to, player),
             TacAction::StepInHome { from, to } => self.move_ball_to_goal(from, to, player),
             TacAction::Trickster { target1, target2 } => self.swap_balls(target1, target2),
-            TacAction::Enter => return self.put_ball_in_play(player).map(TacMoveResult::Capture),
+            TacAction::Enter => {
+                let _ = self.put_ball_in_play(player);
+            }
             TacAction::Suspend => self.discard_flag = true,
             TacAction::Jester => {
                 self.jester_flag = true;
@@ -469,6 +438,11 @@ impl Board {
             TacAction::Devil => self.devil_flag = true,
             TacAction::Discard => self.discard_flag = false,
             TacAction::SevenSteps { steps } => {
+                struct Data {
+                    start: Square,
+                    end: Square,
+                    goal: Option<u8>,
+                }
                 // Move in home first, this is because `StepInHome` moves rely on this
                 // due to move generation
                 for s in &steps {
@@ -477,24 +451,17 @@ impl Board {
                     };
                 }
 
-                struct Data {
-                    orig: Square,
-                    start: Square,
-                    end: Square,
-                    goal: Option<u8>,
-                    in_home: bool,
-                }
                 // Order steps to prevent capturing of balls that have to move
                 let mut board_steps = steps
                     .iter()
                     .filter_map(|s| match s {
-                        TacAction::Step { from, to } => Some((*from, *from, *to, None, false)),
+                        TacAction::Step { from, to } => Some((*from, *to, None)),
                         TacAction::StepInHome { from, to } => {
-                            Some((*from, *from, player.home(), Some(*to), true))
+                            Some((*from, player.home(), Some(*to)))
                         }
                         _ => None,
                     })
-                    .sorted_by(|(_, s1, _, _, _), (_, s2, _, _, _)| {
+                    .sorted_by(|(s1, _, _), (s2, _, _)| {
                         if s1.is_min() && s2.is_max() {
                             Ordering::Less
                         } else if s1.is_max() && s2.is_min() {
@@ -504,40 +471,10 @@ impl Board {
                         }
                     })
                     .collect_vec();
-                fn in_range(start: u8, end: u8, x: u8) -> bool {
-                    if start < end {
-                        (start..=end).contains(&x)
-                    } else {
-                        (start..=63).contains(&x) || (0..=end).contains(&x)
-                    }
-                }
-                let mut res: SmallVec<(Square, Color), 7> = SmallVec::new();
-                board_steps = board_steps
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(idx, (o, s, e, g, h))| {
-                        if board_steps
-                            .iter()
-                            .enumerate()
-                            .any(|(idx2, (_, s2, e2, _, _))| {
-                                idx != idx2
-                                    && in_range(s2.0, e2.0, s.0)
-                                    && in_range(s2.0, e2.0, e.0)
-                            })
-                        {
-                            let x = self.capture(*s);
-                            assert!(x.is_some());
-                            res.push((*s, player));
-                            None
-                        } else {
-                            Some((*o, *s, *e, *g, *h))
-                        }
-                    })
-                    .collect_vec();
                 let mut change = true;
                 while change {
                     change = false;
-                    for (orig, s, e, g, _) in &mut board_steps {
+                    for (s, e, g) in &mut board_steps {
                         // We are at the end
                         if s == e {
                             // Step in home
@@ -549,30 +486,22 @@ impl Board {
                         } else {
                             // Step one square forwards
                             let next = s.add(1);
-                            if let Some(cap) = self.move_ball(*s, next, player) {
-                                // Store position and color if we captured
-                                res.push((next, cap));
-                            }
+                            let _ = self.move_ball(*s, next, player);
                             *s = next;
                             change = true;
                         }
                     }
                 }
-                // No captures
-                if res.is_empty() {
-                    return None;
-                }
-                return Some(TacMoveResult::SevenCaptures(res.into()));
             }
             TacAction::Warrior { from, to } => {
                 if from == to {
-                    return self.capture(from).map(TacMoveResult::Capture);
+                    let _ = self.capture(from);
+                } else {
+                    let _ = self.move_ball(from, to, player);
                 }
-                return self.move_ball(from, to, player).map(TacMoveResult::Capture);
             }
             TacAction::Trade => {}
         }
-        None
     }
 
     /// Undo to last state
@@ -777,10 +706,7 @@ impl std::fmt::Debug for Board {
         for fresh in self.fresh {
             write!(f, "{fresh}, ")?;
         }
-        write!(f, "\npast_moves:\n")?;
-        for (mv, captured) in &self.past_moves {
-            writeln!(f, "{mv}, {captured:?}")?;
-        }
+        write!(f, "\nlast_move: {:?}\n", self.last_move)?;
         write!(f, "\ndiscarded:\n")?;
         for c in &self.discarded {
             writeln!(f, "{c:?}")?;

@@ -408,10 +408,7 @@ impl Board {
     pub fn tac_moves(&self, played_by: Color) -> Vec<TacMove> {
         let mut moves = Vec::new();
 
-        if let Some((last_move, _)) = self.past_moves().iter().rev().find(|&(c, _)| {
-            !(matches!(c.card, Card::Tac)
-                || (matches!(c.card, Card::Jester) && matches!(c.action, TacAction::Jester)))
-        }) {
+        if let Some(last_move) = self.last_move() {
             let mut state = self.clone();
             state.tac_undo();
             moves.extend(
@@ -624,6 +621,5 @@ mod tests {
         assert_eq!(board.color_on(Color::Blue.home()).unwrap(), Color::Blue);
         assert_eq!(board.color_on(Color::Green.home()), None);
         assert_eq!(board.color_on(Color::Red.home()).unwrap(), Color::Red);
-        println!("{board:?}");
     }
 }
