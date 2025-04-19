@@ -7,6 +7,12 @@ use crate::{bitboard::BitBoard, color::Color};
 )]
 pub struct Square(pub u8);
 
+impl From<u8> for Square {
+    fn from(value: u8) -> Self {
+        Self(value)
+    }
+}
+
 impl Square {
     const MIN: Square = Square(0);
     const MAX: Square = Square(63);

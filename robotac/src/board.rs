@@ -42,10 +42,6 @@ pub struct PackedBoard {
     // homes: [Home; 4],
     // 4 bits per home
     homes: u16,
-    // base: [u8; 4],
-    // 3 bits per base (max is four -> 100)
-    // 4 unused bits
-    base: u16,
     // fresh: [bool; 4],
     // + 4 bits
     // discard_flag: bool,
