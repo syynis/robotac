@@ -23,8 +23,7 @@ pub struct Board {
     started_flag: bool,
     deck_fresh_flag: bool,
     deck: Deck,
-    discarded: Vec<Card>,
-    last_move: Option<TacMove>,
+    last_non_tac_move: Option<TacMove>,
     hands: [Hand; 4],
     traded: [Option<Card>; 4],
     one_or_thirteen: [bool; 4],
@@ -60,8 +59,6 @@ pub struct PackedBoard {
     // top_idx, times_dealt -> u8 each -> 2 bytes
     // Total: 18 * 2 + 2 = 38 bytes, down from
     deck: Deck,
-    // 24 u8, could be smallvec
-    discarded: Vec<Card>,
     last_move: Option<tac_types::PackedTacMove>,
     // 1 card -> u8, 6 cards in hand -> 48 bits -> u64
     // 1 card could be 5 bits so 6 cards -> 30 bits -> u32
@@ -72,6 +69,10 @@ pub struct PackedBoard {
     // This doesn't belong here
     pub move_count: u32,
     seed: u64,
+    started: Color,
+    previous_balls: [BitBoard; 4],
+    previous_homes: [Home; 4],
+    previous_fresh: [bool; 4],
 }
 
 impl Default for Board {
@@ -99,8 +100,7 @@ impl Board {
             started_flag: false,
             deck_fresh_flag: false,
             deck: Deck::default(),
-            discarded: Vec::new(),
-            last_move: None,
+            last_non_tac_move: None,
             hands: [const { Vec::new() }; 4].map(Hand::new),
             traded: [None; 4],
             one_or_thirteen: [false; 4],
@@ -298,13 +298,13 @@ impl Board {
     /// Will return `None` if the current player is on the first move.
     #[must_use]
     pub fn last_played(&self) -> Option<Card> {
-        self.discarded.iter().last().copied()
+        self.last_non_tac_move.map(|m| m.card)
     }
 
     /// Returns past moves
     #[must_use]
     pub fn last_move(&self) -> Option<&TacMove> {
-        self.last_move.as_ref()
+        self.last_non_tac_move.as_ref()
     }
 
     /// Returns `true` if the there is no ball between `start` and `goal`.
@@ -374,12 +374,11 @@ impl Board {
                     mv.card, self.hands[player as usize]
                 );
             }
-            self.discarded.push(mv.card);
             self.apply_action(mv.action.clone(), mv.played_for);
             if !(matches!(mv.card, Card::Tac)
                 || (matches!(mv.card, Card::Jester) && matches!(mv.action, TacAction::Jester)))
             {
-                self.last_move = Some(mv.clone());
+                self.last_non_tac_move = Some(mv.clone());
             }
             if !matches!(mv.action, TacAction::Jester) {
                 self.previous_balls = current_balls;
@@ -390,8 +389,7 @@ impl Board {
             if self.hands.iter().all(Hand::is_empty) {
                 debug_assert!(!self.discard_flag);
                 self.deal_new();
-                self.last_move.take();
-                self.discarded.clear();
+                self.last_non_tac_move.take();
                 self.player_to_move = self.started.next();
                 self.started = self.player_to_move;
             } else if !self.jester_flag {
@@ -702,11 +700,7 @@ impl std::fmt::Debug for Board {
         for fresh in self.fresh {
             write!(f, "{fresh}, ")?;
         }
-        write!(f, "\nlast_move: {:?}\n", self.last_move)?;
-        write!(f, "\ndiscarded:\n")?;
-        for c in &self.discarded {
-            writeln!(f, "{c:?}")?;
-        }
+        write!(f, "\nlast_move: {:?}\n", self.last_non_tac_move)?;
         writeln!(f)?;
         writeln!(
             f,

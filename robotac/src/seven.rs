@@ -165,6 +165,12 @@ impl Board {
                     }
                 }
             }
+
+            // TODO
+            // After calculating moves into home check if home is full and there is budget remaining
+            // If so then we can use them to move partners balls
+            // Things to account for:
+            // Need to check if the moves we did would capture any of partners balls
             let mut combinations = Vec::new();
             for (actions, remaining_budget, balls) in step_in_home_moves {
                 let balls = balls.iter().collect_vec();

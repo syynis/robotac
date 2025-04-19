@@ -1,8 +1,9 @@
 use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 
-use crate::{square::Square, Card, Color};
+use crate::{square::Square, BitBoard, Card, Color};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TacAction {
@@ -19,6 +20,14 @@ pub enum TacAction {
     Discard,
     Trade,
     SevenSteps { steps: Vec<TacAction> },
+    // SevenSteps2 { steps: Vec<(SevenAction, bool)> },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum SevenAction {
+    Step { from: Square, dist: u8 },
+    StepHome { from: Square, to: u8 },
+    StepInHome { from: u8, to: u8 },
 }
 
 impl Display for TacAction {
@@ -83,9 +92,10 @@ pub enum PackedTacMove {
     // -> 12 + 4 + 4 -> 20 bits
     // This requires us to sort the moves by position and location
     Normal(u32),
-    Seven(u32),
+    Seven(u64),
 }
 
+// Normal
 // 0000 0000 0000 0000 0000 0000 0000 0000
 //                                  - ---- Card
 //                                --       Played for
@@ -93,6 +103,16 @@ pub enum PackedTacMove {
 //                      --- ---            From
 //              - ---- -                   To
 //         - ---                           Action
+// Seven
+// 0000 0000 0000 0000 0000 0000 0000 0000
+//                                       - Card
+//                                     --  Played for
+//                                  - -    Played by
+//                            -- ---       Played by
+//                                         Played by
+//                                         Played by
+//                                         Played by
+//                                         Played by
 impl PackedTacMove {
     const PLAYED_FOR: usize = 5;
     const PLAYED_BY: usize = 7;
@@ -101,6 +121,7 @@ impl PackedTacMove {
     const ACTION: usize = 21;
     const SQUARE_SZ: usize = 6;
     pub fn new(card: Card, action: TacAction, played_for: Color, played_by: Color) -> Self {
+        assert!(!matches!(action, TacAction::SevenSteps { .. }));
         let mut res: u32 = 0;
         res |= card as u32;
         res |= (played_for as u32) << Self::PLAYED_FOR;
@@ -134,21 +155,60 @@ impl PackedTacMove {
             }
             TacAction::Discard => 9,
             TacAction::Trade => 10,
-            TacAction::SevenSteps { ref steps } => 11,
+            TacAction::SevenSteps { .. } => unreachable!(),
         };
-        if matches!(action, TacAction::SevenSteps { ref steps }) {
-            return PackedTacMove::Seven(0);
-        }
         res |= action_id << Self::ACTION;
         PackedTacMove::Normal(res)
+    }
+
+    pub fn new_seven(
+        card: Card,
+        actions: Vec<(SevenAction, bool)>,
+        played_for: Color,
+        played_by: Color,
+    ) -> Self {
+        let mut res: u64 = 0;
+        assert!(matches!(card, Card::Seven | Card::Tac));
+        if matches!(card, Card::Tac) {
+            res |= 1;
+        }
+        res |= (played_for as u64) << 1;
+        res |= (played_by as u64) << 3;
+        for (idx, (action, for_partner)) in actions.iter().cloned().enumerate() {
+            match action {
+                SevenAction::Step { from, dist } => {
+                    res |= 0b01 << (idx as u64 * 6 + 5);
+                    // TODO
+                }
+                SevenAction::StepHome { from, to } => {
+                    res |= 0b10 << (idx as u64 * 6 + 5);
+                    // TODO
+                }
+                SevenAction::StepInHome { from, to } => {
+                    res |= 0b11 << (idx as u64 * 6 + 5);
+                    // TODO
+                }
+            }
+            if for_partner {
+                res |= 1 << (idx * 6 + 2 + 5);
+            }
+        }
+        PackedTacMove::Seven(res)
     }
 
     pub fn card(&self) -> Card {
         match self {
             // This is safe because Card has 18 entries which fits into 5 bits
-            PackedTacMove::Normal(m) | PackedTacMove::Seven(m) => unsafe {
+            PackedTacMove::Normal(m) => unsafe {
                 std::mem::transmute::<u8, Card>((m & 0b11111) as u8)
             },
+            PackedTacMove::Seven(m) => {
+                if m & 1 == 0 {
+                    Card::Seven
+                } else {
+                    Card::Tac
+                }
+            }
         }
     }
 
@@ -186,15 +246,59 @@ impl PackedTacMove {
                 }
             }
             // TODO
-            PackedTacMove::Seven(m) => TacAction::SevenSteps { steps: Vec::new() },
+            PackedTacMove::Seven(m) => {
+                let mut steps = Vec::new();
+                let mut m = m;
+                let extract_move = |s: &mut u64| -> Option<(SevenAction, bool)> {
+                    let kind = *s & 0b11;
+                    *s >>= 2;
+                    let partner = *s & 0b1;
+                    *s >>= 1;
+                    let action = match kind {
+                        0 => None,
+                        1 => {
+                            let data = *s & 0b111111111;
+                            *s >>= 9;
+                            let from = data & 0b111111;
+                            let dist = data >> 6;
+                            Some(SevenAction::Step { from, dist })
+                        }
+                        2 => {
+                            let data = *s & 0b11111111;
+                            *s >>= 8;
+                            let from = data & 0b111111;
+                            let to = data >> 6;
+                            Some(SevenAction::StepHome { from, to })
+                        }
+                        3 => {
+                            let data = *s & 0b1111;
+                            *s >>= 4;
+                            let from = data & 0b11;
+                            let to = data >> 2;
+                            Some(SevenAction::StepInHome { from, to })
+                        }
+                        _ => unreachable!(),
+                    }?;
+                    Some((action, partner > 0))
+                };
+
+                while let Some(x) = extract_moves(&mut m) {
+                    // steps.push(x);
+                }
+
+                TacAction::SevenSteps { steps }
+            }
         }
     }
 
     pub fn played_for(&self) -> Color {
         match self {
             // This is safe because Color has 4 entries which fits into 2 bits
-            PackedTacMove::Normal(m) | PackedTacMove::Seven(m) => unsafe {
+            PackedTacMove::Normal(m) => unsafe {
                 std::mem::transmute::<u8, Color>((m >> Self::PLAYED_FOR & 0b11) as u8)
+            },
+            PackedTacMove::Seven(m) => unsafe {
+                std::mem::transmute::<u8, Color>((m >> 1 & 0b11) as u8)
             },
         }
     }
@@ -202,8 +306,11 @@ impl PackedTacMove {
     pub fn played_by(&self) -> Color {
         match self {
             // This is safe because Color has 4 entries which fits into 2 bits
-            PackedTacMove::Normal(m) | PackedTacMove::Seven(m) => unsafe {
+            PackedTacMove::Normal(m) => unsafe {
                 std::mem::transmute::<u8, Color>((m >> Self::PLAYED_BY & 0b11) as u8)
+            },
+            PackedTacMove::Seven(m) => unsafe {
+                std::mem::transmute::<u8, Color>((m >> 3 & 0b11) as u8)
             },
         }
     }
@@ -266,6 +373,18 @@ mod tests {
                 from: 18.into(),
                 to: 21.into()
             }
+        );
+    }
+    #[test]
+    fn packed_seven() {
+        let packed = PackedTacMove::new_seven(
+            Card::Seven,
+            vec![
+                (SevenAction::Step, 3, Color::Black),
+                (SevenAction::Step, 3, Color::Black),
+            ],
+            Color::Black,
+            Color::Green,
         );
     }
 }
