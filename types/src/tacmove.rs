@@ -19,7 +19,14 @@ pub enum TacAction {
     Warrior { from: Square, to: Square },
     Discard,
     Trade,
-    SevenSteps { steps: Vec<TacAction> },
+    SevenSteps { steps: SmallVec<SevenAction, 4> },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum SevenAction {
+    Step { from: Square, to: Square },
+    StepHome { from: u8, to: u8 },
+    StepInHome { from: Square, to: u8 },
 }
 
 impl Display for TacAction {
@@ -51,6 +58,22 @@ impl Display for TacAction {
             }
             _ => {
                 write!(f, "{self:?}")?;
+            }
+        };
+        Ok(())
+    }
+}
+impl Display for SevenAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SevenAction::Step { from, to } => {
+                write!(f, "Step {} {}", from.0, to.0)?;
+            }
+            SevenAction::StepHome { from, to } => {
+                write!(f, "Home {from} {to}")?;
+            }
+            SevenAction::StepInHome { from, to } => {
+                write!(f, "In home {} {}", from.0, to)?;
             }
         };
         Ok(())
@@ -115,19 +138,4 @@ impl TacMove {
             played_by,
         }
     }
-}
-
-pub enum PackedTacMoveResult {
-    Capture(Color),
-    // Square -> 6 bits
-    // Color -> 2 bits
-    // (6 + 2) * 7 -> u64
-    // half the size of unpacked
-    SevenCaptures(u64),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TacMoveResult {
-    Capture(Color),
-    SevenCaptures(SmallVec<(Square, Color), 7>),
 }

@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use tac_types::{BitBoard, Card, Color, Home, Square, TacAction, TacMove};
+use tac_types::{BitBoard, Card, Color, Home, SevenAction, Square, TacAction, TacMove};
 
 use crate::board::Board;
 
@@ -20,10 +20,10 @@ fn moves_for_budget(
     budget: u8,
     goal: u8,
     player: Color,
-) -> impl Iterator<Item = (TacAction, Square, u8)> {
+) -> impl Iterator<Item = (SevenAction, Square, u8)> {
     balls_reach_home(balls, budget - (goal + 1), player).map(move |(b, dist_home)| {
         (
-            TacAction::StepInHome { from: b, to: goal },
+            SevenAction::StepInHome { from: b, to: goal },
             b,
             budget - (dist_home + goal + 1),
         )
@@ -50,7 +50,7 @@ impl Board {
                     .into_iter()
                     .map(|hm| {
                         hm.into_iter()
-                            .map(|(from, to)| TacAction::StepHome { from, to })
+                            .map(|(from, to)| SevenAction::StepHome { from, to })
                             .collect_vec()
                     })
                     .collect_vec()
@@ -63,7 +63,9 @@ impl Board {
                 moves.extend(home_moves.into_iter().map(|steps| {
                     TacMove::new(
                         Card::Seven,
-                        TacAction::SevenSteps { steps },
+                        TacAction::SevenSteps {
+                            steps: steps.into(),
+                        },
                         play_for,
                         player,
                     )
@@ -86,7 +88,7 @@ impl Board {
                 let mut new_home = home;
                 // Apply changes
                 for home_mv in home_mvs {
-                    if let TacAction::StepHome { from, to } = home_mv {
+                    if let SevenAction::StepHome { from, to } = home_mv {
                         new_home.unset(*from);
                         new_home.set(*to);
                     }
@@ -177,7 +179,7 @@ impl Board {
                     1 => {
                         let mut res = actions.clone();
                         if remaining_budget != 0 {
-                            res.push(TacAction::Step {
+                            res.push(SevenAction::Step {
                                 from: balls[0],
                                 to: balls[0].add(remaining_budget),
                             });
@@ -190,13 +192,13 @@ impl Board {
 
                             let mut res = actions.clone();
                             if i != 0 {
-                                res.push(TacAction::Step {
+                                res.push(SevenAction::Step {
                                     from: balls[0],
                                     to: balls[0].add(i),
                                 });
                             }
                             if j != 0 {
-                                res.push(TacAction::Step {
+                                res.push(SevenAction::Step {
                                     from: balls[1],
                                     to: balls[1].add(j),
                                 });
@@ -210,19 +212,19 @@ impl Board {
                                 let k = remaining_budget - i - j;
                                 let mut res = actions.clone();
                                 if i != 0 {
-                                    res.push(TacAction::Step {
+                                    res.push(SevenAction::Step {
                                         from: balls[0],
                                         to: balls[0].add(i),
                                     });
                                 }
                                 if j != 0 {
-                                    res.push(TacAction::Step {
+                                    res.push(SevenAction::Step {
                                         from: balls[1],
                                         to: balls[1].add(j),
                                     });
                                 }
                                 if k != 0 {
-                                    res.push(TacAction::Step {
+                                    res.push(SevenAction::Step {
                                         from: balls[2],
                                         to: balls[2].add(k),
                                     });
@@ -238,25 +240,25 @@ impl Board {
                                     let l = remaining_budget - i - j - k;
                                     let mut res = actions.clone();
                                     if i != 0 {
-                                        res.push(TacAction::Step {
+                                        res.push(SevenAction::Step {
                                             from: balls[0],
                                             to: balls[0].add(i),
                                         });
                                     }
                                     if j != 0 {
-                                        res.push(TacAction::Step {
+                                        res.push(SevenAction::Step {
                                             from: balls[1],
                                             to: balls[1].add(j),
                                         });
                                     }
                                     if k != 0 {
-                                        res.push(TacAction::Step {
+                                        res.push(SevenAction::Step {
                                             from: balls[2],
                                             to: balls[2].add(k),
                                         });
                                     }
                                     if l != 0 {
-                                        res.push(TacAction::Step {
+                                        res.push(SevenAction::Step {
                                             from: balls[3],
                                             to: balls[3].add(l),
                                         });
@@ -273,7 +275,9 @@ impl Board {
             moves.extend(combinations.into_iter().map(|steps| {
                 TacMove::new(
                     Card::Seven,
-                    TacAction::SevenSteps { steps },
+                    TacAction::SevenSteps {
+                        steps: steps.into(),
+                    },
                     play_for,
                     player,
                 )

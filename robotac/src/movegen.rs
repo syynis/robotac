@@ -417,7 +417,6 @@ impl Board {
                     .into_iter()
                     .map(|m| TacMove::new(Card::Tac, m.action, m.played_for, m.played_by)),
             );
-            state.tac_undo();
         }
 
         moves

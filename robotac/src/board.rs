@@ -6,7 +6,10 @@ use std::{
 
 use itertools::Itertools;
 use rand::{rngs::StdRng, SeedableRng};
-use tac_types::{BitBoard, Card, Color, Deck, Hand, Home, Square, TacAction, TacMove, ALL_COLORS};
+use smallvec::smallvec;
+use tac_types::{
+    BitBoard, Card, Color, Deck, Hand, Home, SevenAction, Square, TacAction, TacMove, ALL_COLORS,
+};
 
 use crate::knowledge::Knowledge;
 
@@ -442,7 +445,7 @@ impl Board {
                 // Move in home first, this is because `StepInHome` moves rely on this
                 // due to move generation
                 for s in &steps {
-                    if let TacAction::StepHome { from, to } = s {
+                    if let SevenAction::StepHome { from, to } = s {
                         self.move_ball_in_goal(*from, *to, player);
                     };
                 }
@@ -451,8 +454,8 @@ impl Board {
                 let mut board_steps = steps
                     .iter()
                     .filter_map(|s| match s {
-                        TacAction::Step { from, to } => Some((*from, *to, None)),
-                        TacAction::StepInHome { from, to } => {
+                        SevenAction::Step { from, to } => Some((*from, *to, None)),
+                        SevenAction::StepInHome { from, to } => {
                             Some((*from, player.home(), Some(*to)))
                         }
                         _ => None,
@@ -748,7 +751,7 @@ mod tests {
         let black_move = TacMove::new(
             Card::Seven,
             TacAction::SevenSteps {
-                steps: vec![Step {
+                steps: smallvec![SevenAction::Step {
                     from: Square(0),
                     to: Square(7),
                 }],
@@ -786,20 +789,20 @@ mod tests {
         let green_move = TacMove::new(
             Card::Seven,
             TacAction::SevenSteps {
-                steps: vec![
-                    Step {
+                steps: smallvec![
+                    SevenAction::Step {
                         from: Square(3),
                         to: Square(5),
                     },
-                    Step {
+                    SevenAction::Step {
                         from: Square(10),
                         to: Square(12),
                     },
-                    Step {
+                    SevenAction::Step {
                         from: Square(34),
                         to: Square(35),
                     },
-                    Step {
+                    SevenAction::Step {
                         from: Square(46),
                         to: Square(48),
                     },
@@ -811,7 +814,7 @@ mod tests {
         let red_move = TacMove::new(
             Card::Tac,
             TacAction::SevenSteps {
-                steps: vec![Step {
+                steps: smallvec![SevenAction::Step {
                     from: Square(60),
                     to: Square(3),
                 }],
@@ -822,13 +825,13 @@ mod tests {
         let black_move = TacMove::new(
             Card::Tac,
             TacAction::SevenSteps {
-                steps: vec![
-                    Step {
+                steps: smallvec![
+                    SevenAction::Step {
                         from: Square(0),
                         to: Square(1),
                     },
-                    StepHome { from: 0, to: 1 },
-                    StepInHome {
+                    SevenAction::StepHome { from: 0, to: 1 },
+                    SevenAction::StepInHome {
                         from: Square(62),
                         to: 0,
                     },
