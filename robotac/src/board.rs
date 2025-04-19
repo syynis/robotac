@@ -23,8 +23,7 @@ pub struct Board {
     started_flag: bool,
     deck_fresh_flag: bool,
     deck: Deck,
-    discarded: Vec<Card>,
-    last_move: Option<TacMove>,
+    last_tacable_move: Option<TacMove>,
     hands: [Hand; 4],
     traded: [Option<Card>; 4],
     one_or_thirteen: [bool; 4],
@@ -103,8 +102,7 @@ impl Board {
             started_flag: false,
             deck_fresh_flag: false,
             deck: Deck::default(),
-            discarded: Vec::new(),
-            last_move: None,
+            last_tacable_move: None,
             hands: [const { Vec::new() }; 4].map(Hand::new),
             traded: [None; 4],
             one_or_thirteen: [false; 4],
@@ -302,13 +300,13 @@ impl Board {
     /// Will return `None` if the current player is on the first move.
     #[must_use]
     pub fn last_played(&self) -> Option<Card> {
-        self.discarded.iter().last().copied()
+        self.last_tacable_move.clone().map(|m| m.card)
     }
 
     /// Returns past moves
     #[must_use]
     pub fn last_move(&self) -> Option<&TacMove> {
-        self.last_move.as_ref()
+        self.last_tacable_move.as_ref()
     }
 
     /// Returns `true` if the there is no ball between `start` and `goal`.
@@ -378,12 +376,11 @@ impl Board {
                     mv.card, self.hands[player as usize]
                 );
             }
-            self.discarded.push(mv.card);
             self.apply_action(mv.action.clone(), mv.played_for);
             if !(matches!(mv.card, Card::Tac)
                 || (matches!(mv.card, Card::Jester) && matches!(mv.action, TacAction::Jester)))
             {
-                self.last_move = Some(mv.clone());
+                self.last_tacable_move = Some(mv.clone());
             }
             if !matches!(mv.action, TacAction::Jester) {
                 self.previous_balls = current_balls;
@@ -394,8 +391,7 @@ impl Board {
             if self.hands.iter().all(Hand::is_empty) {
                 debug_assert!(!self.discard_flag);
                 self.deal_new();
-                self.last_move.take();
-                self.discarded.clear();
+                self.last_tacable_move.take();
                 self.player_to_move = self.started.next();
                 self.started = self.player_to_move;
             } else if !self.jester_flag {
@@ -706,11 +702,7 @@ impl std::fmt::Debug for Board {
         for fresh in self.fresh {
             write!(f, "{fresh}, ")?;
         }
-        write!(f, "\nlast_move: {:?}\n", self.last_move)?;
-        write!(f, "\ndiscarded:\n")?;
-        for c in &self.discarded {
-            writeln!(f, "{c:?}")?;
-        }
+        write!(f, "\nlast_move: {:?}\n", self.last_tacable_move)?;
         writeln!(f)?;
         writeln!(
             f,
