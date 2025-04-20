@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use smallvec::{smallvec, SmallVec};
 use tac_types::{BitBoard, Card, Color, Home, SevenAction, Square, TacAction, TacMove};
 
 use crate::board::Board;
@@ -45,17 +46,19 @@ impl Board {
         let budget_start = if num_balls > 0 { 0 } else { 7 };
         for home_budget in budget_start..max_home {
             // Get all possiblities of moving balls in home with the given budget
-            let mut home_moves = if home_budget != 0 {
-                get_home_moves_with_budget(home, home_budget)
-                    .into_iter()
-                    .map(|hm| {
-                        hm.into_iter()
-                            .map(|(from, to)| SevenAction::StepHome { from, to })
-                            .collect_vec()
-                    })
-                    .collect_vec()
+            let mut home_moves: SmallVec<SmallVec<SevenAction, 4>, 4> = if home_budget != 0 {
+                SmallVec::from_iter(
+                    get_home_moves_with_budget(home, home_budget)
+                        .into_iter()
+                        .map(|hm| {
+                            SmallVec::from_iter(
+                                hm.into_iter()
+                                    .map(|(from, to)| SevenAction::StepHome { from, to }),
+                            )
+                        }),
+                )
             } else {
-                Vec::new()
+                SmallVec::new()
             };
 
             // If our budget is entirely for home moves don't check for ring moves
@@ -75,9 +78,10 @@ impl Board {
 
             let board_budget = 7 - home_budget;
 
-            let mut step_in_home_moves = Vec::new();
+            let mut step_in_home_moves: SmallVec<(SmallVec<SevenAction, 4>, u8, BitBoard), 4> =
+                SmallVec::new();
             if home_budget & 1 == 0 {
-                home_moves.push(Vec::new());
+                home_moves.push(SmallVec::new());
             }
             for home_mvs in &home_moves {
                 step_in_home_moves.push((home_mvs.clone(), board_budget, balls_bb));
@@ -105,7 +109,7 @@ impl Board {
                                 moves_for_budget(balls_bb, board_budget, 0, play_for)
                             {
                                 step_in_home_moves.push((
-                                    [home_mvs.clone(), vec![action]].concat(),
+                                    [home_mvs.clone(), smallvec![action]].concat().into(),
                                     budget,
                                     balls_bb ^ b.bitboard(),
                                 ));
@@ -134,7 +138,9 @@ impl Board {
                                         debug_assert!(wasted % 2 == 0);
                                         let remaining_budget = budget1 - wasted;
                                         step_in_home_moves.push((
-                                            [home_mvs.clone(), vec![action1.clone()]].concat(),
+                                            [home_mvs.clone(), smallvec![action1.clone()]]
+                                                .concat()
+                                                .into(),
                                             remaining_budget,
                                             balls_bb ^ b1.bitboard(),
                                         ));
@@ -151,9 +157,10 @@ impl Board {
                                                 step_in_home_moves.push((
                                                     [
                                                         home_mvs.clone(),
-                                                        vec![action1.clone(), action2],
+                                                        smallvec![action1.clone(), action2],
                                                     ]
-                                                    .concat(),
+                                                    .concat()
+                                                    .into(),
                                                     budget2,
                                                     balls_bb ^ b1.bitboard() ^ b2.bitboard(),
                                                 ));
@@ -167,7 +174,7 @@ impl Board {
                     }
                 }
             }
-            let mut combinations = Vec::new();
+            let mut combinations: SmallVec<SmallVec<SevenAction, 4>, 64> = SmallVec::new();
             for (actions, remaining_budget, balls) in step_in_home_moves {
                 let balls = balls.iter().collect_vec();
                 match balls.len() {
@@ -288,8 +295,8 @@ impl Board {
 }
 
 #[allow(clippy::too_many_lines)]
-fn get_home_moves_with_budget(home: Home, budget: u8) -> Vec<Vec<(u8, u8)>> {
-    let mut moves = Vec::new();
+fn get_home_moves_with_budget(home: Home, budget: u8) -> SmallVec<SmallVec<(u8, u8), 4>, 4> {
+    let mut moves = SmallVec::new();
     let unlocked = home.get_all_unlocked();
     if budget == 0 || unlocked.is_empty() {
         return moves;
@@ -301,44 +308,44 @@ fn get_home_moves_with_budget(home: Home, budget: u8) -> Vec<Vec<(u8, u8)>> {
         1 => match home.0 {
             0b0001 => {
                 if even_budget {
-                    moves.push(vec![(0, 2)]);
+                    moves.push(smallvec![(0, 2)]);
                 } else {
-                    moves.push(vec![(0, 1)]);
-                    moves.push(vec![(0, 3)]);
+                    moves.push(smallvec![(0, 1)]);
+                    moves.push(smallvec![(0, 3)]);
                 }
             }
             0b0010 => {
                 if even_budget {
-                    moves.push(vec![(1, 3)]);
+                    moves.push(smallvec![(1, 3)]);
                 } else {
-                    moves.push(vec![(1, 0)]);
-                    moves.push(vec![(1, 2)]);
+                    moves.push(smallvec![(1, 0)]);
+                    moves.push(smallvec![(1, 2)]);
                 }
             }
             0b0100 => {
                 if even_budget {
-                    moves.push(vec![(2, 0)]);
+                    moves.push(smallvec![(2, 0)]);
                 } else {
-                    moves.push(vec![(2, 1)]);
-                    moves.push(vec![(2, 3)]);
+                    moves.push(smallvec![(2, 1)]);
+                    moves.push(smallvec![(2, 3)]);
                 }
             }
             0b1001 => {
                 if even_budget {
-                    moves.push(vec![(0, 2)]);
+                    moves.push(smallvec![(0, 2)]);
                 } else {
-                    moves.push(vec![(0, 1)]);
+                    moves.push(smallvec![(0, 1)]);
                 }
             }
             0b1010 => {
                 if !even_budget {
-                    moves.push(vec![(1, 0)]);
-                    moves.push(vec![(1, 2)]);
+                    moves.push(smallvec![(1, 0)]);
+                    moves.push(smallvec![(1, 2)]);
                 }
             }
             0b1101 => {
                 if !even_budget {
-                    moves.push(vec![(0, 1)]);
+                    moves.push(smallvec![(0, 1)]);
                 }
             }
             _ => unreachable!(),
@@ -346,57 +353,57 @@ fn get_home_moves_with_budget(home: Home, budget: u8) -> Vec<Vec<(u8, u8)>> {
         2 => match home.0 {
             0b0110 => {
                 if even_budget {
-                    moves.push(vec![(2, 3), (1, 2)]);
-                    moves.push(vec![(2, 3), (1, 0)]);
-                    moves.push(vec![(1, 0), (2, 1)]);
+                    moves.push(smallvec![(2, 3), (1, 2)]);
+                    moves.push(smallvec![(2, 3), (1, 0)]);
+                    moves.push(smallvec![(1, 0), (2, 1)]);
                 } else {
-                    moves.push(vec![(2, 3)]);
-                    moves.push(vec![(1, 0)]);
+                    moves.push(smallvec![(2, 3)]);
+                    moves.push(smallvec![(1, 0)]);
                 }
             }
             0b0101 => {
                 if even_budget {
-                    moves.push(vec![(2, 3), (0, 1)]);
+                    moves.push(smallvec![(2, 3), (0, 1)]);
                 } else {
-                    moves.push(vec![(0, 1)]);
-                    moves.push(vec![(2, 3)]);
-                    moves.push(vec![(2, 1)]);
+                    moves.push(smallvec![(0, 1)]);
+                    moves.push(smallvec![(2, 3)]);
+                    moves.push(smallvec![(2, 1)]);
                     if budget > 1 {
-                        moves.push(vec![(2, 3), (0, 2)]);
+                        moves.push(smallvec![(2, 3), (0, 2)]);
                     }
                 }
             }
             0b0011 => {
                 if even_budget {
-                    moves.push(vec![(1, 3)]);
-                    moves.push(vec![(1, 2), (0, 1)]);
+                    moves.push(smallvec![(1, 3)]);
+                    moves.push(smallvec![(1, 2), (0, 1)]);
                     if budget > 2 {
-                        moves.push(vec![(1, 3), (0, 2)]);
+                        moves.push(smallvec![(1, 3), (0, 2)]);
                     }
                 } else {
-                    moves.push(vec![(1, 2)]);
+                    moves.push(smallvec![(1, 2)]);
 
                     if budget > 1 {
-                        moves.push(vec![(1, 3), (0, 1)]);
+                        moves.push(smallvec![(1, 3), (0, 1)]);
                     }
                 }
             }
             0b1011 => {
                 if even_budget {
-                    moves.push(vec![(1, 2), (0, 1)]);
+                    moves.push(smallvec![(1, 2), (0, 1)]);
                 } else {
-                    moves.push(vec![(1, 2)]);
+                    moves.push(smallvec![(1, 2)]);
                 }
             }
             _ => unreachable!(),
         },
         3 => {
             if even_budget {
-                moves.push(vec![(2, 3), (1, 2)]);
+                moves.push(smallvec![(2, 3), (1, 2)]);
             } else {
-                moves.push(vec![(2, 3)]);
+                moves.push(smallvec![(2, 3)]);
                 if budget > 2 {
-                    moves.push(vec![(2, 3), (1, 2), (0, 1)]);
+                    moves.push(smallvec![(2, 3), (1, 2), (0, 1)]);
                 }
             }
         }

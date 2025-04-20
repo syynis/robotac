@@ -6,7 +6,6 @@ use std::{
 
 use itertools::Itertools;
 use rand::{rngs::StdRng, SeedableRng};
-use smallvec::smallvec;
 use tac_types::{
     BitBoard, Card, Color, Deck, Hand, Home, SevenAction, Square, TacAction, TacMove, ALL_COLORS,
 };
