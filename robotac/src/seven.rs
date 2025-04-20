@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use smallvec::{smallvec, SmallVec};
 use tac_types::{BitBoard, Card, Color, Home, SevenAction, Square, TacAction, TacMove};
 
@@ -44,6 +43,14 @@ impl Board {
         let can_move_home = !(home.is_locked() || home.is_empty());
         let max_home = if can_move_home { 8 } else { 1 };
         let budget_start = if num_balls > 0 { 0 } else { 7 };
+        let min_board_budget = (1..8)
+            .find(|budget| {
+                balls_bb.iter().any(|b| {
+                    let dist = b.distance_to_home(player);
+                    dist <= (budget - 1)
+                })
+            })
+            .unwrap_or(8);
         for home_budget in budget_start..max_home {
             // Get all possiblities of moving balls in home with the given budget
             let mut home_moves: SmallVec<SmallVec<SevenAction, 4>, 4> = if home_budget != 0 {
@@ -83,20 +90,19 @@ impl Board {
                 step_in_home_moves.push((home_mvs.clone(), board_budget, balls_bb));
             }
 
-            // For each possible move combination we can do in our home
-            for home_mvs in &home_moves {
-                let mut new_home = home;
-                // Apply changes
-                for home_mv in home_mvs {
-                    if let SevenAction::StepHome { from, to } = home_mv {
-                        new_home.unset(*from);
-                        new_home.set(*to);
+            if board_budget >= min_board_budget {
+                // For each possible move combination we can do in our home
+                for home_mvs in &home_moves {
+                    let mut new_home = home;
+                    // Apply changes
+                    for home_mv in home_mvs.clone() {
+                        if let SevenAction::StepHome { from, to } = home_mv {
+                            new_home.unset(from);
+                            new_home.set(to);
+                        }
                     }
-                }
 
-                let new_home_free = new_home.free();
-                // Can enter home
-                if new_home.free() > 0 {
+                    let new_home_free = new_home.free();
                     // Match on the number of free home squares for entry
                     match new_home_free {
                         // Easy case. Budget is distance to home + 1
@@ -172,7 +178,7 @@ impl Board {
             }
             let mut combinations: SmallVec<SmallVec<SevenAction, 4>, 64> = SmallVec::new();
             for (actions, remaining_budget, balls) in step_in_home_moves {
-                let balls = balls.iter().collect_vec();
+                let balls: SmallVec<Square, 4> = balls.iter().collect();
                 match balls.len() {
                     0 => {
                         if remaining_budget == 0 {
