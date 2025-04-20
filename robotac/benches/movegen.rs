@@ -1,10 +1,12 @@
 use std::time::Duration;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use rand::seq::IteratorRandom;
 use robotac::board::Board;
 use tac_types::{ALL_COLORS, CARDS};
 
 pub fn criterion_benchmark(criterion: &mut Criterion) {
+    let mut rng = rand::thread_rng();
     let mut board = Board::new_with_seed(0);
     for color in ALL_COLORS {
         board.put_ball_in_play(color);
@@ -23,11 +25,24 @@ pub fn criterion_benchmark(criterion: &mut Criterion) {
             }
         });
     });
+    criterion.bench_function("apply", |b| {
+        b.iter(|| {
+            let mut board = board.clone();
+            black_box(for _ in 0..100 {
+                let get_moves = &board.get_moves(board.current_player());
+                let Some(mv) = get_moves.iter().choose(&mut rng) else {
+                    // Game over
+                    break;
+                };
+                board.play(mv);
+            })
+        });
+    });
 }
 
 criterion_group! {
     name = benches;
-    config = Criterion::default().sample_size(300).measurement_time(Duration::from_secs(30));
+    config = Criterion::default().sample_size(300).measurement_time(Duration::from_secs(60));
     targets = criterion_benchmark
 }
 criterion_main!(benches);

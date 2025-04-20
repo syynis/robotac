@@ -6,6 +6,7 @@ use std::{
 
 use itertools::Itertools;
 use rand::{rngs::StdRng, SeedableRng};
+use smallvec::SmallVec;
 use tac_types::{
     BitBoard, Card, Color, Deck, Hand, Home, SevenAction, Square, TacAction, TacMove, ALL_COLORS,
 };
@@ -447,12 +448,12 @@ impl Board {
                 }
 
                 // Order steps to prevent capturing of balls that have to move
-                let mut board_steps = steps
-                    .iter()
+                let mut board_steps: SmallVec<_, 4> = steps
+                    .into_iter()
                     .filter_map(|s| match s {
-                        SevenAction::Step { from, to } => Some((*from, *to, None)),
+                        SevenAction::Step { from, to } => Some((from, to, None)),
                         SevenAction::StepInHome { from, to } => {
-                            Some((*from, player.home(), Some(*to)))
+                            Some((from, player.home(), Some(to)))
                         }
                         SevenAction::StepHome { .. } => None,
                     })
@@ -465,7 +466,7 @@ impl Board {
                             Ord::cmp(s1, s2).reverse()
                         }
                     })
-                    .collect_vec();
+                    .collect();
                 let mut change = true;
                 while change {
                     change = false;
