@@ -53,18 +53,8 @@ impl Board {
             .unwrap_or(8);
         for home_budget in budget_start..max_home {
             // Get all possiblities of moving balls in home with the given budget
-            let mut home_moves: SmallVec<SmallVec<SevenAction, 4>, 4> = if home_budget != 0 {
-                get_home_moves_with_budget(home, home_budget)
-                    .into_iter()
-                    .map(|hm| {
-                        hm.into_iter()
-                            .map(|(from, to)| SevenAction::StepHome { from, to })
-                            .collect()
-                    })
-                    .collect()
-            } else {
-                SmallVec::new()
-            };
+            let get_home_moves_with_budget = get_home_moves_with_budget(home, home_budget);
+            let mut home_moves = get_home_moves_with_budget;
 
             // If our budget is entirely for home moves don't check for ring moves
             if home_budget == 7 {
@@ -91,91 +81,25 @@ impl Board {
             }
 
             if board_budget >= min_board_budget {
-                // For each possible move combination we can do in our home
-                for home_mvs in &home_moves {
-                    let mut new_home = home;
-                    // Apply changes
-                    for home_mv in home_mvs.clone() {
-                        if let SevenAction::StepHome { from, to } = home_mv {
-                            new_home.unset(from);
-                            new_home.set(to);
-                        }
-                    }
-
-                    let new_home_free = new_home.free();
-                    // Match on the number of free home squares for entry
-                    match new_home_free {
-                        // Easy case. Budget is distance to home + 1
-                        1 => {
-                            for (action, b, budget) in
-                                moves_for_budget(balls_bb, board_budget, 0, play_for)
-                            {
-                                step_in_home_moves.push((
-                                    [home_mvs.clone(), smallvec![action]].concat().into(),
-                                    budget,
-                                    balls_bb ^ b.bitboard(),
-                                ));
-                            }
-                        }
-                        // With two or more free spaces, we first move one ball (probably should be the closest??)
-                        // Then we can "waste" budget and / or if we wasted an odd amount of budget
-                        // check if we still have enough to reach the the goal with the second ball
-                        // We can handle 3 and 4 the same as 2 because there is no way
-                        // to put 3 or 4 balls in the goal with seven steps
-                        // TODO this could probably be handled in `balls_reach_home` by sorting with distance
-                        // and then carrying the remaining budget
-                        // TODO are there edge cases with self capturing???
-                        2..=4 => {
-                            for goal in 0..new_home_free {
-                                let budget = board_budget;
-                                if goal + 1 > budget {
-                                    continue;
-                                }
-                                for (action1, b1, budget1) in
-                                    moves_for_budget(balls_bb, budget, goal, play_for)
-                                {
-                                    // If we can move in home, we are wasting with home moves already
-                                    let to_waste = if can_move_home { 0 } else { budget1 };
-                                    for wasted in (0..=to_waste).step_by(2) {
-                                        debug_assert!(wasted % 2 == 0);
-                                        let remaining_budget = budget1 - wasted;
-                                        step_in_home_moves.push((
-                                            [home_mvs.clone(), smallvec![action1.clone()]]
-                                                .concat()
-                                                .into(),
-                                            remaining_budget,
-                                            balls_bb ^ b1.bitboard(),
-                                        ));
-                                        for goal2 in 0..goal {
-                                            if goal2 + 1 > remaining_budget {
-                                                continue;
-                                            }
-                                            for (action2, b2, budget2) in moves_for_budget(
-                                                balls_bb ^ b1.bitboard(),
-                                                remaining_budget,
-                                                goal2,
-                                                play_for,
-                                            ) {
-                                                step_in_home_moves.push((
-                                                    [
-                                                        home_mvs.clone(),
-                                                        smallvec![action1.clone(), action2],
-                                                    ]
-                                                    .concat()
-                                                    .into(),
-                                                    budget2,
-                                                    balls_bb ^ b1.bitboard() ^ b2.bitboard(),
-                                                ));
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
+                get_step_in_home_moves(
+                    play_for,
+                    home,
+                    balls_bb,
+                    can_move_home,
+                    &home_moves,
+                    board_budget,
+                    &mut step_in_home_moves,
+                );
             }
+
+            let push = |res: &mut SmallVec<SevenAction, 4>, from: Square, amount: u8| {
+                if amount != 0 {
+                    res.push(SevenAction::Step {
+                        from,
+                        to: from.add(amount),
+                    });
+                }
+            };
             let mut combinations: SmallVec<SmallVec<SevenAction, 4>, 64> = SmallVec::new();
             for (actions, remaining_budget, balls) in step_in_home_moves {
                 let balls: SmallVec<Square, 4> = balls.iter().collect();
@@ -183,16 +107,19 @@ impl Board {
                     0 => {
                         if remaining_budget == 0 {
                             combinations.push(actions);
+                        } else {
+                            // If there are no balls in ring or base all must be in home
+                            // Then if we are not playing for partner we can use remaining budget
+                            // to move their balls
+                            if self.num_base(play_for) == 0 && play_for == player {
+                                // TODO here we should check if we can move partners balls because
+                                // Optimally we would just call `seven_moves` here but that would need a bunch of changes
+                            }
                         }
                     }
                     1 => {
                         let mut res = actions.clone();
-                        if remaining_budget != 0 {
-                            res.push(SevenAction::Step {
-                                from: balls[0],
-                                to: balls[0].add(remaining_budget),
-                            });
-                        }
+                        push(&mut res, balls[0], remaining_budget);
                         combinations.push(res);
                     }
                     2 => {
@@ -200,18 +127,8 @@ impl Board {
                             let j = remaining_budget - i;
 
                             let mut res = actions.clone();
-                            if i != 0 {
-                                res.push(SevenAction::Step {
-                                    from: balls[0],
-                                    to: balls[0].add(i),
-                                });
-                            }
-                            if j != 0 {
-                                res.push(SevenAction::Step {
-                                    from: balls[1],
-                                    to: balls[1].add(j),
-                                });
-                            }
+                            push(&mut res, balls[0], i);
+                            push(&mut res, balls[1], j);
                             combinations.push(res);
                         }
                     }
@@ -220,24 +137,9 @@ impl Board {
                             for j in 0..=remaining_budget - i {
                                 let k = remaining_budget - i - j;
                                 let mut res = actions.clone();
-                                if i != 0 {
-                                    res.push(SevenAction::Step {
-                                        from: balls[0],
-                                        to: balls[0].add(i),
-                                    });
-                                }
-                                if j != 0 {
-                                    res.push(SevenAction::Step {
-                                        from: balls[1],
-                                        to: balls[1].add(j),
-                                    });
-                                }
-                                if k != 0 {
-                                    res.push(SevenAction::Step {
-                                        from: balls[2],
-                                        to: balls[2].add(k),
-                                    });
-                                }
+                                push(&mut res, balls[0], i);
+                                push(&mut res, balls[1], j);
+                                push(&mut res, balls[2], k);
                                 combinations.push(res);
                             }
                         }
@@ -248,30 +150,10 @@ impl Board {
                                 for k in 0..=remaining_budget - i - j {
                                     let l = remaining_budget - i - j - k;
                                     let mut res = actions.clone();
-                                    if i != 0 {
-                                        res.push(SevenAction::Step {
-                                            from: balls[0],
-                                            to: balls[0].add(i),
-                                        });
-                                    }
-                                    if j != 0 {
-                                        res.push(SevenAction::Step {
-                                            from: balls[1],
-                                            to: balls[1].add(j),
-                                        });
-                                    }
-                                    if k != 0 {
-                                        res.push(SevenAction::Step {
-                                            from: balls[2],
-                                            to: balls[2].add(k),
-                                        });
-                                    }
-                                    if l != 0 {
-                                        res.push(SevenAction::Step {
-                                            from: balls[3],
-                                            to: balls[3].add(l),
-                                        });
-                                    }
+                                    push(&mut res, balls[0], i);
+                                    push(&mut res, balls[1], j);
+                                    push(&mut res, balls[2], k);
+                                    push(&mut res, balls[3], l);
                                     combinations.push(res);
                                 }
                             }
@@ -294,12 +176,98 @@ impl Board {
     }
 }
 
+fn get_step_in_home_moves(
+    play_for: Color,
+    home: Home,
+    balls_bb: BitBoard,
+    can_move_home: bool,
+    home_moves: &SmallVec<SmallVec<SevenAction, 4>, 4>,
+    board_budget: u8,
+    step_in_home_moves: &mut SmallVec<(SmallVec<SevenAction, 4>, u8, BitBoard), 4>,
+) {
+    // For each possible move combination we can do in our home
+    for home_mvs in home_moves {
+        let mut new_home = home;
+        // Apply changes
+        for home_mv in home_mvs.clone() {
+            if let SevenAction::StepHome { from, to } = home_mv {
+                new_home.unset(from);
+                new_home.set(to);
+            }
+        }
+
+        let new_home_free = new_home.free();
+        // Match on the number of free home squares for entry
+        match new_home_free {
+            // Easy case. Budget is distance to home + 1
+            1 => {
+                for (action, b, budget) in moves_for_budget(balls_bb, board_budget, 0, play_for) {
+                    step_in_home_moves.push((
+                        [home_mvs.clone(), smallvec![action]].concat().into(),
+                        budget,
+                        balls_bb ^ b.bitboard(),
+                    ));
+                }
+            }
+            // With two or more free spaces, we first move one ball (probably should be the closest??)
+            // Then we can "waste" budget and / or if we wasted an odd amount of budget
+            // check if we still have enough to reach the the goal with the second ball
+            // We can handle 3 and 4 the same as 2 because there is no way
+            // to put 3 or 4 balls in the goal with seven steps
+            2..=4 => {
+                for goal in 0..new_home_free {
+                    let budget = board_budget;
+                    if goal + 1 > budget {
+                        continue;
+                    }
+                    for (action1, b1, budget1) in moves_for_budget(balls_bb, budget, goal, play_for)
+                    {
+                        // If we can move in home, we are wasting with home moves already
+                        let to_waste = if can_move_home { 0 } else { budget1 };
+                        for wasted in (0..=to_waste).step_by(2) {
+                            debug_assert!(wasted % 2 == 0);
+                            let remaining_budget = budget1 - wasted;
+                            step_in_home_moves.push((
+                                [home_mvs.clone(), smallvec![action1.clone()]]
+                                    .concat()
+                                    .into(),
+                                remaining_budget,
+                                balls_bb ^ b1.bitboard(),
+                            ));
+                            for goal2 in 0..goal {
+                                if goal2 + 1 > remaining_budget {
+                                    continue;
+                                }
+                                for (action2, b2, budget2) in moves_for_budget(
+                                    balls_bb ^ b1.bitboard(),
+                                    remaining_budget,
+                                    goal2,
+                                    play_for,
+                                ) {
+                                    step_in_home_moves.push((
+                                        [home_mvs.clone(), smallvec![action1.clone(), action2]]
+                                            .concat()
+                                            .into(),
+                                        budget2,
+                                        balls_bb ^ b1.bitboard() ^ b2.bitboard(),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 #[allow(clippy::too_many_lines)]
-fn get_home_moves_with_budget(home: Home, budget: u8) -> SmallVec<SmallVec<(u8, u8), 4>, 4> {
-    let mut moves = SmallVec::new();
+fn get_home_moves_with_budget(home: Home, budget: u8) -> SmallVec<SmallVec<SevenAction, 4>, 4> {
+    let mut moves: SmallVec<SmallVec<(u8, u8), 4>, 4> = SmallVec::new();
     let unlocked = home.get_all_unlocked();
     if budget == 0 || unlocked.is_empty() {
-        return moves;
+        return SmallVec::new();
     }
     let num_unlocked = unlocked.len();
     let even_budget = budget & 1 == 0;
@@ -410,6 +378,13 @@ fn get_home_moves_with_budget(home: Home, budget: u8) -> SmallVec<SmallVec<(u8, 
         _ => unreachable!(),
     }
     moves
+        .into_iter()
+        .map(|hm| {
+            hm.into_iter()
+                .map(|(from, to)| SevenAction::StepHome { from, to })
+                .collect()
+        })
+        .collect()
 }
 
 #[cfg(test)]
