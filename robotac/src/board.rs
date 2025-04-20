@@ -238,7 +238,9 @@ impl Board {
 
     /// Returns the amount of balls from a given player not in play.
     #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
     pub fn num_base(&self, color: Color) -> u8 {
+        // Amount of bits in a bitboard is at most 64 which fits into u8
         4 - self.home(color).amount() - self.balls_with(color).len() as u8
     }
 
@@ -436,11 +438,6 @@ impl Board {
             TacAction::Devil => self.devil_flag = true,
             TacAction::Discard => self.discard_flag = false,
             TacAction::SevenSteps { steps } => {
-                struct Data {
-                    start: Square,
-                    end: Square,
-                    goal: Option<u8>,
-                }
                 // Move in home first, this is because `StepInHome` moves rely on this
                 // due to move generation
                 for s in &steps {
@@ -457,7 +454,7 @@ impl Board {
                         SevenAction::StepInHome { from, to } => {
                             Some((*from, player.home(), Some(*to)))
                         }
-                        _ => None,
+                        SevenAction::StepHome { .. } => None,
                     })
                     .sorted_by(|(s1, _, _), (s2, _, _)| {
                         if s1.is_min() && s2.is_max() {
@@ -722,6 +719,7 @@ impl std::fmt::Debug for Board {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use smallvec::smallvec;
     #[test]
     fn can_move() {
         let mut board = Board::new();

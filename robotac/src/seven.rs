@@ -47,16 +47,14 @@ impl Board {
         for home_budget in budget_start..max_home {
             // Get all possiblities of moving balls in home with the given budget
             let mut home_moves: SmallVec<SmallVec<SevenAction, 4>, 4> = if home_budget != 0 {
-                SmallVec::from_iter(
-                    get_home_moves_with_budget(home, home_budget)
-                        .into_iter()
-                        .map(|hm| {
-                            SmallVec::from_iter(
-                                hm.into_iter()
-                                    .map(|(from, to)| SevenAction::StepHome { from, to }),
-                            )
-                        }),
-                )
+                get_home_moves_with_budget(home, home_budget)
+                    .into_iter()
+                    .map(|hm| {
+                        hm.into_iter()
+                            .map(|(from, to)| SevenAction::StepHome { from, to })
+                            .collect()
+                    })
+                    .collect()
             } else {
                 SmallVec::new()
             };
@@ -66,9 +64,7 @@ impl Board {
                 moves.extend(home_moves.into_iter().map(|steps| {
                     TacMove::new(
                         Card::Seven,
-                        TacAction::SevenSteps {
-                            steps: steps.into(),
-                        },
+                        TacAction::SevenSteps { steps },
                         play_for,
                         player,
                     )
@@ -282,9 +278,7 @@ impl Board {
             moves.extend(combinations.into_iter().map(|steps| {
                 TacMove::new(
                     Card::Seven,
-                    TacAction::SevenSteps {
-                        steps: steps.into(),
-                    },
+                    TacAction::SevenSteps { steps },
                     play_for,
                     player,
                 )

@@ -85,9 +85,8 @@ impl Knowledge {
     }
 
     pub fn update_with_move(&mut self, mv: &TacMove, board: &Board) {
-        assert_eq!(mv.played_by, board.current_player(), "{}", mv);
+        assert_eq!(mv.played_by, board.current_player(), "{mv}");
         let player = mv.played_by;
-        let play_for = mv.played_for;
         // Account for when jester was played this hand
         let has_traded_card = if self.played_jester {
             self.observer.partner().prev()
@@ -361,7 +360,7 @@ impl std::fmt::Debug for Knowledge {
         write!(f, "Open {:?}, ", self.has_opening)?;
         write!(f, "Away {:?}, ", self.traded_away)?;
         write!(f, "Got  {:?}, ", self.got_traded)?;
-        write!(f, "Jest {:?}\n", self.played_jester)?;
+        writeln!(f, "Jest {:?}", self.played_jester)?;
         for (idx, k) in self.hands.iter().enumerate() {
             if idx == 0 {
                 write!(f, "next: ")?;
