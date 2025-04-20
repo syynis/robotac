@@ -744,7 +744,6 @@ mod tests {
     #[test]
     fn selfcapture() {
         use Color::*;
-        use TacAction::*;
         let mut board = Board::new();
         board.xor(0, Black);
         board.xor(7, Black);

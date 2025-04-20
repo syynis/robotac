@@ -10,7 +10,6 @@ enum-map = {workspace = true}
 rand = {workspace = true}
 itertools = {workspace = true}
 smallvec = {workspace = true}
-arraydeque = {workspace = true}
 serde = {workspace = true}
 criterion = {workspace = true}
 

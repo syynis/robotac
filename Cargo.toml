@@ -18,7 +18,6 @@ crossbeam = {version = "0.8.4"}
 ratatui = "*"
 clap = "*"
 vek = "*"
-arraydeque = "*"
 serde = {version = "1.0.210", features = ["derive"]}
 ron = "*"
 criterion = "*"

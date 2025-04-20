@@ -4,6 +4,10 @@ use tac_types::{BitBoard, Card, Color, Home, Square, TacAction, TacMove};
 use crate::board::Board;
 
 impl Board {
+    // TODO think about how to best remove this heap allocation
+    // We probably want to have a struct like MoveGen which holds a reference to the board
+    // a smallvec and possibly other precomputed state.
+    // Then implement move generation on that struct and have each function push to the list directly instead of returning one
     #[must_use]
     pub fn get_moves(&self, played_by: Color) -> Vec<TacMove> {
         let mut moves = Vec::new();

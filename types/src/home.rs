@@ -1,3 +1,4 @@
+use smallvec::SmallVec;
 use std::fmt::Display;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
@@ -60,9 +61,9 @@ impl Home {
     }
 
     #[must_use]
-    pub fn get_all_unlocked(self) -> Vec<u8> {
+    pub fn get_all_unlocked(self) -> SmallVec<u8, 3> {
         let mut home = self;
-        let mut res = Vec::new();
+        let mut res = SmallVec::new();
         while let Some(unlocked) = home.get_single_unlocked() {
             res.push(unlocked);
             home.xor(unlocked);
@@ -104,6 +105,6 @@ mod tests {
         let mut home = Home::EMPTY;
         home.xor(2);
         home.xor(0);
-        assert_eq!(home.get_all_unlocked(), vec![0, 2]);
+        assert_eq!(home.get_all_unlocked().into_vec(), vec![0, 2]);
     }
 }
