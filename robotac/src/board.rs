@@ -1,5 +1,4 @@
 use std::{
-    cmp::Ordering,
     ops::{BitOr, BitXor},
     option::Option,
 };
@@ -439,53 +438,58 @@ impl Board {
             TacAction::Devil => self.devil_flag = true,
             TacAction::Discard => self.discard_flag = false,
             TacAction::SevenSteps { steps } => {
-                // Move in home first, this is because `StepInHome` moves rely on this
-                // due to move generation
                 for s in &steps {
-                    if let SevenAction::StepHome { from, to } = s {
-                        self.move_ball_in_goal(*from, *to, player);
-                    };
+                    match s {
+                        // Can't do full move here, because of how we handle capturing below
+                        SevenAction::Step { from, .. } => self.unset(*from, player),
+                        SevenAction::StepHome { from, to } => {
+                            self.move_ball_in_goal(*from, *to, player);
+                        }
+                        SevenAction::StepInHome { from, to } => {
+                            self.move_ball_to_goal(*from, *to, player);
+                        }
+                    }
                 }
 
-                // Order steps to prevent capturing of balls that have to move
                 let mut board_steps: SmallVec<_, 4> = steps
+                    .clone()
                     .into_iter()
                     .filter_map(|s| match s {
-                        SevenAction::Step { from, to } => Some((from, to, None)),
-                        SevenAction::StepInHome { from, to } => {
-                            Some((from, player.home(), Some(to)))
-                        }
+                        SevenAction::Step { from, to } => Some((from, to, false)),
+                        SevenAction::StepInHome { from, .. } => Some((from, player.home(), true)),
                         SevenAction::StepHome { .. } => None,
                     })
-                    .sorted_by(|(s1, _, _), (s2, _, _)| {
-                        if s1.is_min() && s2.is_max() {
-                            Ordering::Less
-                        } else if s1.is_max() && s2.is_min() {
-                            Ordering::Greater
-                        } else {
-                            Ord::cmp(s1, s2).reverse()
-                        }
+                    .collect();
+                // Remove any steps which do not go into home and are fully contained by another step
+                board_steps = board_steps
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(idx, (s, e, g))| {
+                        (!g && board_steps.iter().enumerate().any(|(idx2, (s2, e2, _))| {
+                            idx != idx2
+                                && Square::in_range(*s2, *e2, *s)
+                                && Square::in_range(*s2, *e2, *e)
+                        }))
+                        .then_some((*s, *e, *g))
                     })
                     .collect();
                 let mut change = true;
                 while change {
                     change = false;
-                    for (s, e, g) in &mut board_steps {
-                        // We are at the end
-                        if s == e {
-                            // Step in home
-                            if let Some(goal) = g {
-                                self.move_ball_to_goal(*e, *goal, player);
-                                *g = None;
-                                change = true;
-                            }
-                        } else {
+                    for (s, e, _) in &mut board_steps {
+                        if s != e {
                             // Step one square forwards
                             let next = s.add(1);
-                            let _ = self.move_ball(*s, next, player);
+                            let _ = self.capture(next);
                             *s = next;
                             change = true;
                         }
+                    }
+                }
+                // Finally finish step moves by setting at destination
+                for (_, e, g) in &board_steps {
+                    if !g {
+                        self.set(*e, player);
                     }
                 }
             }

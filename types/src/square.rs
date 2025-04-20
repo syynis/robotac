@@ -67,4 +67,13 @@ impl Square {
     pub fn is_max(self) -> bool {
         self == Self::MAX
     }
+
+    #[must_use]
+    pub fn in_range(start: Square, end: Square, s: Square) -> bool {
+        if start < end {
+            (start.0..=end.0).contains(&s.0)
+        } else {
+            (start.0..=63).contains(&s.0) || (0..=end.0).contains(&s.0)
+        }
+    }
 }
