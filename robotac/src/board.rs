@@ -465,10 +465,8 @@ impl Board {
                     .iter()
                     .enumerate()
                     .filter_map(|(idx, (s, e, g))| {
-                        (!g && board_steps.iter().enumerate().any(|(idx2, (s2, e2, _))| {
-                            idx != idx2
-                                && Square::in_range(*s2, *e2, *s)
-                                && Square::in_range(*s2, *e2, *e)
+                        (*g || !board_steps.iter().enumerate().any(|(idx2, (s2, e2, _))| {
+                            idx != idx2 && s.in_range(*s2, *e2) && e.in_range(*s2, *e2)
                         }))
                         .then_some((*s, *e, *g))
                     })
