@@ -181,7 +181,7 @@ impl Board {
     /// Sets square to given color
     /// This is a wrapper around xor with an assert that the square is empty
     pub fn set(&mut self, square: Square, color: Color) {
-        debug_assert!(
+        assert!(
             self.color_on(square).is_none(),
             "{:?} {:?} {:?}",
             square,
@@ -194,7 +194,7 @@ impl Board {
     /// Removes color from square
     /// This is a wrapper around xor with an assert that the square is occupied by the color
     pub fn unset(&mut self, square: Square, color: Color) {
-        debug_assert!(
+        assert!(
             self.color_on(square) == Some(color),
             "{:?} {:?} {:?}\n",
             square,
@@ -401,7 +401,7 @@ impl Board {
             }
 
             if self.hands.iter().all(Hand::is_empty) {
-                debug_assert!(!self.discard_flag);
+                assert!(!self.discard_flag);
                 self.deal_new();
                 self.last_tacable_card.take();
                 self.last_tacable_non_jester_card.take();
@@ -412,20 +412,6 @@ impl Board {
             }
         }
         self.move_count += 1;
-        for c in ALL_COLORS {
-            debug_assert_eq!(
-                self.balls_with(c).len()
-                    + self.home(c).amount() as usize
-                    + self.num_base(c) as usize,
-                4,
-                "{:?} {:?} {:?} {:?}\n{:?}\n",
-                c,
-                self.balls_with(c).len(),
-                self.home(c).amount(),
-                self.num_base(c),
-                self
-            );
-        }
     }
 
     pub fn apply_action(&mut self, action: TacAction, player: Color) {
@@ -550,7 +536,7 @@ impl Board {
 
     /// Deal a new set of hands to each player
     pub fn deal_new(&mut self) {
-        debug_assert!(self.hands.iter().all(Hand::is_empty));
+        assert!(self.hands.iter().all(Hand::is_empty));
         let mut rng = StdRng::seed_from_u64(self.seed);
         let dealt_cards = self.deck.deal(&mut rng);
         self.deck_fresh_flag = self.deck.fresh();
@@ -595,7 +581,7 @@ impl Board {
                     .fold(0, |acc, (_, amount, exact)| {
                         acc + if exact { amount } else { 0 }
                     });
-                debug_assert!(self.hand(player).amount() >= exact_sum as usize);
+                assert!(self.hand(player).amount() >= exact_sum as usize);
                 (player != observer)
                     .then_some((player, self.hand(player).amount() - exact_sum as usize))
             })
@@ -609,12 +595,12 @@ impl Board {
             for card in self.hands[player as usize].0.drain(..) {
                 self.deck.put_back(card);
             }
-            debug_assert!(self.hands[player as usize].is_empty());
+            assert!(self.hands[player as usize].is_empty());
         }
 
         // Draw cards equal to the amount put back
         for (player, amount) in amounts {
-            debug_assert!(player != observer);
+            assert!(player != observer);
             let hand = &mut self.hands[player as usize];
             let mut known = knowledge.known_cards(player);
             for (card, amnt, is_exact) in &mut known {
@@ -633,15 +619,15 @@ impl Board {
                     drawn = self.deck.draw_one(&mut rng);
                 }
                 if let Some((_, a, _)) = known.iter_mut().find(|(c, _, _)| *c == drawn) {
-                    debug_assert!(*a > 0);
+                    assert!(*a > 0);
                     *a -= 1;
                 }
 
                 hand.push(drawn);
             });
-            // debug_assert!(hand.amount() == amount + knowledge.known_cards(player).len());
+            // assert!(hand.amount() == amount + knowledge.known_cards(player).len());
         }
-        debug_assert!(self
+        assert!(self
             .hand(observer)
             .iter()
             .all(|c| { observer_hand.iter().any(|c2| c2 == c) }));

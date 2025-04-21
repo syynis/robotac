@@ -234,7 +234,7 @@ fn get_step_in_home_moves(
                         // If we can move in home, we are wasting with home moves already
                         let to_waste = if can_move_home { 0 } else { budget1 };
                         for wasted in (0..=to_waste).step_by(2) {
-                            debug_assert!(wasted % 2 == 0);
+                            assert!(wasted % 2 == 0);
                             let remaining_budget = budget1 - wasted;
                             step_in_home_moves.push((
                                 [home_mvs.clone(), smallvec![action1.clone()]]

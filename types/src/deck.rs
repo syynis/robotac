@@ -66,13 +66,13 @@ impl Deck {
 
     pub fn take(&mut self, card: Card) {
         let amount = &mut self.cards[card as usize].1;
-        debug_assert!(*amount > 0);
+        assert!(*amount > 0);
         *amount -= 1;
     }
 
     pub fn put_back(&mut self, card: Card) {
         self.cards[card as usize].1 += 1;
-        debug_assert!(self.cards[card as usize].1 <= card.amount());
+        assert!(self.cards[card as usize].1 <= card.amount());
     }
 
     #[allow(clippy::missing_panics_doc)]
@@ -81,7 +81,7 @@ impl Deck {
             .cards
             .choose_weighted_mut(rng, |(_, amount)| *amount)
             .expect("Will always be non-empty with valid weights");
-        debug_assert!(*amount > 0);
+        assert!(*amount > 0);
         *amount -= 1;
         *card
     }

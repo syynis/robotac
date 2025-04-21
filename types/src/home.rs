@@ -18,12 +18,12 @@ impl Home {
     }
 
     pub fn set(&mut self, pos: u8) {
-        debug_assert!(self.is_free(pos));
+        assert!(self.is_free(pos));
         self.xor(pos);
     }
 
     pub fn unset(&mut self, pos: u8) {
-        debug_assert!(!self.is_free(pos));
+        assert!(!self.is_free(pos));
         self.xor(pos);
     }
 

@@ -96,7 +96,7 @@ impl Knowledge {
         // New hand
         if board.just_started() {
             for (card, v) in self.history {
-                debug_assert!(v <= card.amount());
+                assert!(v <= card.amount());
             }
             // Full reset knowledge if new deck is played
             if board.deck_fresh() {
@@ -117,7 +117,7 @@ impl Knowledge {
             self.played_jester = false;
         }
         for (card, v) in self.history {
-            debug_assert!(v <= card.amount(), "{v:?} {card:?} {:?}", card.amount());
+            assert!(v <= card.amount(), "{v:?} {card:?} {:?}", card.amount());
         }
         // Update knowledge after trade
         if matches!(mv.action, TacAction::Trade) {
@@ -289,7 +289,7 @@ impl Knowledge {
     }
 
     pub fn rule_out(&mut self, card: Card, player: Color) {
-        debug_assert!(player != self.observer);
+        assert!(player != self.observer);
         self.hands[self.idx(player)][card] = CardKnowledgeKind::Exact(0);
     }
 
@@ -309,12 +309,12 @@ impl Knowledge {
                     self.set_exact(card, player, 0);
                 }
                 CardKnowledgeKind::Atmost(x) => {
-                    debug_assert!(x > 0);
+                    assert!(x > 0);
                     self.history[card] += 1;
                     self.hands[self.idx(player)][card] = CardKnowledgeKind::Atmost(x - 1);
                 }
                 CardKnowledgeKind::Exact(x) => {
-                    debug_assert!(x > 0, "{player:?} {card:?}\n{self:?}");
+                    assert!(x > 0, "{player:?} {card:?}\n{self:?}");
                     self.set_exact(card, player, x - 1);
                 }
             }
