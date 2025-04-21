@@ -332,7 +332,7 @@ impl Knowledge {
                 self.hands.iter_mut().for_each(|hand| {
                     if let CardKnowledgeKind::Unknown = hand[*card] {
                         hand[*card] = CardKnowledgeKind::Exact(0);
-                    };
+                    }
                 });
             }
         }

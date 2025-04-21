@@ -59,7 +59,7 @@ impl Display for TacAction {
             _ => {
                 write!(f, "{self:?}")?;
             }
-        };
+        }
         Ok(())
     }
 }
@@ -75,7 +75,7 @@ impl Display for SevenAction {
             SevenAction::StepInHome { from, to } => {
                 write!(f, "In home {} {}", from.0, to)?;
             }
-        };
+        }
         Ok(())
     }
 }

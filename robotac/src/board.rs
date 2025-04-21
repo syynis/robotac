@@ -121,7 +121,6 @@ impl Board {
     }
     /// Put ball from given player onto the board.
     /// Captures any ball that was on the starting position.
-    #[must_use]
     pub fn put_ball_in_play(&mut self, color: Color) -> Option<Color> {
         assert!(self.num_base(color) != 0);
         let capture = self.capture(color.home());
@@ -132,7 +131,6 @@ impl Board {
 
     /// Move ball from `start` to `end`.
     /// Captures any ball that was on the `end`.
-    #[must_use]
     pub fn move_ball(&mut self, start: Square, end: Square, color: Color) -> Option<Color> {
         let capture = self.capture(end);
         self.unset(start, color);
@@ -216,7 +214,6 @@ impl Board {
     }
 
     /// Try to remove target ball and return its color if there was any.
-    #[must_use]
     pub fn capture(&mut self, target: Square) -> Option<Color> {
         let color = self.color_on(target)?;
         self.unset(target, color);
@@ -370,7 +367,7 @@ impl Board {
             self.trade(mv.card, player);
             if self.traded.iter().all(Option::is_some) {
                 self.take_traded();
-            };
+            }
             self.next_player();
         } else {
             let current_balls = self.balls;
@@ -433,13 +430,13 @@ impl Board {
     pub fn apply_action(&mut self, action: TacAction, player: Color) {
         match action {
             TacAction::Step { from, to } => {
-                let _ = self.move_ball(from, to, player);
+                self.move_ball(from, to, player);
             }
             TacAction::StepHome { from, to } => self.move_ball_in_goal(from, to, player),
             TacAction::StepInHome { from, to } => self.move_ball_to_goal(from, to, player),
             TacAction::Trickster { target1, target2 } => self.swap_balls(target1, target2),
             TacAction::Enter => {
-                let _ = self.put_ball_in_play(player);
+                self.put_ball_in_play(player);
             }
             TacAction::Suspend => self.discard_flag = true,
             TacAction::Jester => {
@@ -489,7 +486,7 @@ impl Board {
                         if s != e {
                             // Step one square forwards
                             let next = s.add(1);
-                            let _ = self.capture(next);
+                            self.capture(next);
                             *s = next;
                             change = true;
                         }
@@ -504,9 +501,9 @@ impl Board {
             }
             TacAction::Warrior { from, to } => {
                 if from == to {
-                    let _ = self.capture(from);
+                    self.capture(from);
                 } else {
-                    let _ = self.move_ball(from, to, player);
+                    self.move_ball(from, to, player);
                 }
             }
             TacAction::Trade => {}
