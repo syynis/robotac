@@ -25,7 +25,8 @@ pub struct Board {
     started_flag: bool,
     deck_fresh_flag: bool,
     deck: Deck,
-    last_tacable_move: Option<TacMove>,
+    last_tacable_card: Option<Card>,
+    last_tacable_non_jester_card: Option<Card>,
     hands: [Hand; 4],
     traded: [Option<Card>; 4],
     one_or_thirteen: [bool; 4],
@@ -104,7 +105,8 @@ impl Board {
             started_flag: false,
             deck_fresh_flag: false,
             deck: Deck::default(),
-            last_tacable_move: None,
+            last_tacable_card: None,
+            last_tacable_non_jester_card: None,
             hands: [const { Vec::new() }; 4].map(Hand::new),
             traded: [None; 4],
             one_or_thirteen: [false; 4],
@@ -312,13 +314,9 @@ impl Board {
     /// Will return `None` if the current player is on the first move.
     #[must_use]
     pub fn last_played(&self) -> Option<Card> {
-        self.last_tacable_move.clone().map(|m| m.card)
-    }
-
-    /// Returns past moves
-    #[must_use]
-    pub fn last_move(&self) -> Option<&TacMove> {
-        self.last_tacable_move.as_ref()
+        self.last_tacable_card
+            .zip(self.last_tacable_non_jester_card)
+            .map(|(l, lj)| if l == lj { l } else { lj })
     }
 
     /// Returns `true` if the there is no ball between `start` and `goal`.
@@ -389,11 +387,13 @@ impl Board {
                 );
             }
             self.apply_action(mv.action.clone(), mv.played_for);
-            if !(matches!(mv.card, Card::Tac)
-                || (matches!(mv.card, Card::Jester) && matches!(mv.action, TacAction::Jester)))
-            {
-                self.last_tacable_move = Some(mv.clone());
+            if !matches!(mv.card, Card::Tac) && !matches!(mv.card, Card::Jester) {
+                if !matches!(mv.action, TacAction::Jester) {
+                    self.last_tacable_card = Some(mv.card);
+                }
+                self.last_tacable_non_jester_card = Some(mv.card);
             }
+
             if !matches!(mv.action, TacAction::Jester) {
                 self.previous_balls = current_balls;
                 self.previous_homes = current_homes;
@@ -403,7 +403,8 @@ impl Board {
             if self.hands.iter().all(Hand::is_empty) {
                 debug_assert!(!self.discard_flag);
                 self.deal_new();
-                self.last_tacable_move.take();
+                self.last_tacable_card.take();
+                self.last_tacable_non_jester_card.take();
                 self.player_to_move = self.started.next();
                 self.started = self.player_to_move;
             } else if !self.jester_flag {
@@ -712,7 +713,7 @@ impl std::fmt::Debug for Board {
         for fresh in self.fresh {
             write!(f, "{fresh}, ")?;
         }
-        write!(f, "\nlast_move: {:?}\n", self.last_tacable_move)?;
+        write!(f, "\nlast_move: {:?}\n", self.last_tacable_card)?;
         writeln!(f)?;
         writeln!(
             f,

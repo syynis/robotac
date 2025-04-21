@@ -412,12 +412,12 @@ impl Board {
     pub fn tac_moves(&self, played_by: Color) -> Vec<TacMove> {
         let mut moves = Vec::new();
 
-        if let Some(last_move) = self.last_move() {
+        if let Some(last_played) = self.last_played() {
             let mut state = self.clone();
             state.tac_undo();
             moves.extend(
                 state
-                    .moves_for_card(played_by, last_move.card)
+                    .moves_for_card(played_by, last_played)
                     .into_iter()
                     .map(|m| TacMove::new(Card::Tac, m.action, m.played_for, m.played_by)),
             );
