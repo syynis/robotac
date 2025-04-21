@@ -47,6 +47,7 @@ impl Square {
             Color::Green => self.0 + 32,
             Color::Red => self.0 + 16,
         } & 63)
+            & 63
     }
 
     #[must_use]

@@ -8,10 +8,12 @@ fn balls_reach_home(
     balls: BitBoard,
     budget: u8,
     player: Color,
+    fresh: bool,
 ) -> impl Iterator<Item = (Square, u8)> {
     balls.iter().filter_map(move |b| {
         let dist = b.distance_to_home(player);
-        (dist <= budget).then_some((b, dist))
+        let need_fresh = if b == player.home() { fresh } else { false };
+        (dist <= budget && !need_fresh).then_some((b, dist))
     })
 }
 
@@ -20,8 +22,9 @@ fn moves_for_budget(
     budget: u8,
     goal: u8,
     player: Color,
+    fresh: bool,
 ) -> impl Iterator<Item = (SevenAction, Square, u8)> {
-    balls_reach_home(balls, budget - (goal + 1), player).map(move |(b, dist_home)| {
+    balls_reach_home(balls, budget - (goal + 1), player, fresh).map(move |(b, dist_home)| {
         (
             SevenAction::StepInHome { from: b, to: goal },
             b,
@@ -43,11 +46,12 @@ impl Board {
         let can_move_home = !(home.is_locked() || home.is_empty());
         let max_home = if can_move_home { 8 } else { 1 };
         let budget_start = if num_balls > 0 { 0 } else { 7 };
+        let fresh = self.fresh(play_for);
         let min_board_budget = (1..8)
             .find(|budget| {
                 balls_bb.iter().any(|b| {
                     let dist = b.distance_to_home(player);
-                    dist <= (budget - 1)
+                    dist <= (budget - 1) && !self.fresh(play_for)
                 })
             })
             .unwrap_or(8);
@@ -88,6 +92,7 @@ impl Board {
                     can_move_home,
                     &home_moves,
                     board_budget,
+                    fresh,
                     &mut step_in_home_moves,
                 );
             }
@@ -183,6 +188,7 @@ fn get_step_in_home_moves(
     can_move_home: bool,
     home_moves: &SmallVec<SmallVec<SevenAction, 4>, 4>,
     board_budget: u8,
+    fresh: bool,
     step_in_home_moves: &mut SmallVec<(SmallVec<SevenAction, 4>, u8, BitBoard), 4>,
 ) {
     // For each possible move combination we can do in our home
@@ -201,7 +207,9 @@ fn get_step_in_home_moves(
         match new_home_free {
             // Easy case. Budget is distance to home + 1
             1 => {
-                for (action, b, budget) in moves_for_budget(balls_bb, board_budget, 0, play_for) {
+                for (action, b, budget) in
+                    moves_for_budget(balls_bb, board_budget, 0, play_for, fresh)
+                {
                     step_in_home_moves.push((
                         [home_mvs.clone(), smallvec![action]].concat().into(),
                         budget,
@@ -220,7 +228,8 @@ fn get_step_in_home_moves(
                     if goal + 1 > budget {
                         continue;
                     }
-                    for (action1, b1, budget1) in moves_for_budget(balls_bb, budget, goal, play_for)
+                    for (action1, b1, budget1) in
+                        moves_for_budget(balls_bb, budget, goal, play_for, fresh)
                     {
                         // If we can move in home, we are wasting with home moves already
                         let to_waste = if can_move_home { 0 } else { budget1 };
@@ -243,6 +252,7 @@ fn get_step_in_home_moves(
                                     remaining_budget,
                                     goal2,
                                     play_for,
+                                    fresh,
                                 ) {
                                     step_in_home_moves.push((
                                         [home_mvs.clone(), smallvec![action1.clone(), action2]]
@@ -398,7 +408,6 @@ mod tests {
         let player = Color::Black;
         board.put_ball_in_play(player);
         let moves = board.seven_moves(player);
-
         assert_eq!(moves.len(), 1);
         board.move_ball(Square(0), Square(7), player);
         board.put_ball_in_play(player);

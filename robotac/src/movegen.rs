@@ -272,6 +272,7 @@ impl Board {
                 // Need to add here in case there is ball on home square
                 if start.distance_to_home(play_for) < amount
                     && self.can_move(start, play_for.home().add(1))
+                    && !self.fresh(play_for)
                 {
                     // TODO Compute the range of possible value to reach the home beforehand, to reduce computation
                     if let Some(goal_pos) = self.position_in_home(start, amount, play_for) {
@@ -306,12 +307,11 @@ impl Board {
                     // Minimum reverse dist to goal
                     let min_rev_dist = 64 - start.distance_to_home(play_for) + 1;
                     let free = self.home(play_for).free();
-
                     // We are right infront of goal and moved in some way after entering play before
                     if min_rev_dist == 65 && free == 4 && !self.fresh(play_for) {
                         moves.push(TacMove::new(
                             card,
-                            TacAction::StepInHome { from: start, to: 4 },
+                            TacAction::StepInHome { from: start, to: 3 },
                             play_for,
                             played_by,
                         ));
@@ -515,6 +515,40 @@ mod tests {
                 Color::Black,
             )
         );
+        board.move_ball(Square(4), Square(0), Color::Black);
+        assert!(!board.fresh(Color::Black));
+        let moves = board.moves_for_card_squares(
+            Square(0).bitboard(),
+            Color::Black,
+            Color::Black,
+            Card::Four,
+        );
+        println!("{moves:?}");
+        assert_eq!(moves.len(), 2);
+        assert_eq!(
+            moves[0],
+            TacMove::new(
+                Card::Four,
+                TacAction::Step {
+                    from: Square(0),
+                    to: Square(60)
+                },
+                Color::Black,
+                Color::Black,
+            )
+        );
+        assert_eq!(
+            moves[1],
+            TacMove::new(
+                Card::Four,
+                TacAction::StepInHome {
+                    from: Square(0),
+                    to: 3,
+                },
+                Color::Black,
+                Color::Black,
+            )
+        );
     }
 
     #[test]
@@ -624,5 +658,25 @@ mod tests {
         assert_eq!(board.color_on(Color::Blue.home()).unwrap(), Color::Blue);
         assert_eq!(board.color_on(Color::Green.home()), None);
         assert_eq!(board.color_on(Color::Red.home()).unwrap(), Color::Red);
+    }
+
+    #[test]
+    fn in_home_fresh() {
+        use Color::*;
+        let mut board = Board::new();
+        board.put_ball_in_play(Black);
+        let moves = board.moves_for_card(Black, Card::Two);
+        assert_eq!(moves.len(), 1);
+        board.move_ball(0.into(), 2.into(), Black);
+        board.put_ball_in_play(Black);
+        board.swap_balls(0.into(), 2.into());
+        let moves = board.moves_for_card(Black, Card::Three);
+        assert_eq!(
+            moves[0].action,
+            TacAction::StepInHome {
+                from: Square(0),
+                to: 2
+            }
+        );
     }
 }
