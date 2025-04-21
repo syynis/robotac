@@ -126,6 +126,7 @@ impl Board {
         assert!(self.num_base(color) != 0);
         let capture = self.capture(color.home());
         self.set(color.home(), color);
+        self.fresh[color as usize] = true;
         capture
     }
 
@@ -136,6 +137,9 @@ impl Board {
         let capture = self.capture(end);
         self.unset(start, color);
         self.set(end, color);
+        if color.home() == start {
+            self.fresh[color as usize] = false;
+        }
         capture
     }
 
@@ -160,6 +164,13 @@ impl Board {
         self.set(sq1, c2);
         self.unset(sq2, c2);
         self.set(sq2, c1);
+        // If any of the two squares belong to the home of one of the balls it's no longer fresh
+        if sq1 == c1.home() || sq2 == c1.home() {
+            self.fresh[c1 as usize] = false;
+        }
+        if sq1 == c2.home() || sq2 == c2.home() {
+            self.fresh[c2 as usize] = false;
+        }
     }
 
     /// Toggles the state of a square for a given player.
@@ -845,5 +856,21 @@ mod tests {
         board.play(&black_move);
         println!("{board:?}");
         println!("{:?}", board.moves_for_card(Blue, Card::Tac));
+    }
+
+    #[test]
+    fn swap_fresh() {
+        use Color::*;
+        let mut board = Board::new();
+        board.put_ball_in_play(Black);
+        board.put_ball_in_play(Green);
+        assert!(board.fresh(Black));
+        assert!(board.fresh(Green));
+        board.swap_balls(Black.home(), Green.home());
+        assert!(!board.fresh(Black));
+        assert!(!board.fresh(Green));
+        board.swap_balls(Black.home(), Green.home());
+        assert!(!board.fresh(Black));
+        assert!(!board.fresh(Green));
     }
 }
