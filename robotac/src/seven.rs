@@ -43,7 +43,7 @@ impl Board {
         let num_balls = self.balls_with(play_for).len();
         let home = *self.home(play_for);
         let balls_bb = self.balls_with(play_for);
-        let can_move_home = !(home.is_locked() || home.is_empty());
+        let can_move_home = home.can_move();
         let max_home = if can_move_home { 8 } else { 1 };
         let budget_start = if num_balls > 0 { 0 } else { 7 };
         let fresh = self.fresh(play_for);
@@ -57,8 +57,7 @@ impl Board {
             .unwrap_or(8);
         for home_budget in budget_start..max_home {
             // Get all possiblities of moving balls in home with the given budget
-            let get_home_moves_with_budget = get_home_moves_with_budget(home, home_budget);
-            let mut home_moves = get_home_moves_with_budget;
+            let mut home_moves = get_home_moves_with_budget(home, home_budget);
 
             // If our budget is entirely for home moves don't check for ring moves
             if home_budget == 7 {
@@ -117,6 +116,16 @@ impl Board {
                             // Then if we are not playing for partner we can use remaining budget
                             // to move their balls
                             if self.num_base(play_for) == 0 && play_for == player {
+                                let partner_balls = self.balls_with(player.partner());
+                                let partner_home = self.home(player.partner()).clone();
+                                if partner_home.can_move() {
+                                    for partner_home_budget in 0..8 {
+                                        let mut partner_home_moves = get_home_moves_with_budget(
+                                            partner_home,
+                                            partner_home_budget,
+                                        );
+                                    }
+                                }
                                 // TODO here we should check if we can move partners balls because
                                 // Optimally we would just call `seven_moves` here but that would need a bunch of changes
                             }
