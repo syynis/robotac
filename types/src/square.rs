@@ -41,18 +41,12 @@ impl Square {
 
     #[must_use]
     pub const fn distance_to_home(self, color: Color) -> u8 {
-        (64 - (match color {
-            Color::Black => self.0,
-            Color::Blue => self.0 + 48,
-            Color::Green => self.0 + 32,
-            Color::Red => self.0 + 16,
-        } & 63))
-            & 63
+        self.distance_to(color.home())
     }
 
     #[must_use]
-    pub fn distance_to(self, other: Square) -> u8 {
-        if self <= other {
+    pub const fn distance_to(self, other: Square) -> u8 {
+        if self.0 <= other.0 {
             other.0 - self.0
         } else {
             64 - (self.0 - other.0)

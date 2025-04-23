@@ -1,7 +1,4 @@
-use std::{
-    ops::{BitOr, BitXor},
-    option::Option,
-};
+use std::{ops::BitXor, option::Option};
 
 use itertools::Itertools;
 use rand::{rngs::StdRng, SeedableRng};
@@ -326,26 +323,21 @@ impl Board {
         if start == goal {
             return false;
         }
-        // TODO investigate if it is worth splitting the computation into two cases
-        // Case 1: start < goal
-        // Easy case where we just need to check bits between start and goal
-        // Case 2: start > goal
-        // Case we currently always do. Requires rotating bitboard instead of simply shifting
+        self.distance_to_next(start) >= start.distance_to(goal)
+    }
 
+    #[must_use]
+    pub fn distance_to_next(&self, start: Square) -> u8 {
         // Get the distance of the start to the zero square
         let offset = start.0;
         // Convert to bitboard representation
         let start = start.bitboard();
-        let goal = goal.bitboard();
 
         self.all_balls() // Need to check all balls for potential blockers
-            .bitor(goal) // Set goal bit
             .bitxor(start) // Remove start bit
             .rotate_right(offset) // Rotate by distance start bit has to the 0th bit
-            .next_square() // Get the next set bit. If we can_move this should be the goal bit
-            .bitboard() // Convert back to bitboard
-            .rotate_left(offset) // Rotate back
-            .eq(&goal) // Bit has same position as goal bit
+            .next_square() // Get the next set bit which also holds the distance
+            .0
     }
 
     /// Returns true if square is occupied

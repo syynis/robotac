@@ -1,4 +1,5 @@
 use enum_map::EnumMap;
+use smallvec::SmallVec;
 use tac_types::{Card, Color, Hand, TacAction, TacMove, CARDS};
 
 use crate::board::Board;
@@ -228,7 +229,7 @@ impl Knowledge {
         self.rule_out(Card::Jester, player);
         self.rule_out(Card::Angel, player);
         // If there are moveable balls in home
-        if !(home.is_locked() || home.is_empty()) {
+        if home.can_move() {
             // Seven can always be played with unlocked balls
             self.rule_out(Card::Seven, player);
             for c in &[Card::One, Card::Two, Card::Three] {
@@ -244,18 +245,12 @@ impl Knowledge {
         // Card is used to step forward
         if card.is_simple().is_some() {
             let ours = board.balls_with(player);
-            let all = board.all_balls();
             // Get the ball with the highest distance forwards to the next ball
             let max_amount_between_balls = ours
                 .iter()
-                .map(|ball| {
-                    (all ^ ball.bitboard())
-                        .rotate_right(ball.0)
-                        .try_next_square()
-                        .map_or(0, |s| s.0)
-                })
+                .map(|ball| board.distance_to_next(ball))
                 .max()
-                .map_or(0, |x| x);
+                .expect("Requirement for this function to be called");
             // Rule out any card that could move forwards with the maximum space we have
             for steps in 1..max_amount_between_balls {
                 if let Some(c) = Card::from_steps(steps) {
@@ -273,8 +268,8 @@ impl Knowledge {
     }
 
     #[must_use]
-    pub fn known_cards(&self, player: Color) -> Vec<(Card, u8, bool)> {
-        let mut cards = Vec::new();
+    pub fn known_cards(&self, player: Color) -> SmallVec<(Card, u8, bool), 18> {
+        let mut cards = SmallVec::new();
         if player == self.observer {
             return cards;
         }

@@ -11,7 +11,7 @@ impl Board {
     #[must_use]
     pub fn get_moves(&self, played_by: Color) -> Vec<TacMove> {
         let mut moves = Vec::new();
-        let hand = self.hand(played_by);
+        let hand = self.hand(played_by).iter().sorted().dedup();
 
         // If player before us did winning move
         if self.need_trade() && (self.won(Color::Black) || self.won(Color::Blue)) {
@@ -28,7 +28,7 @@ impl Board {
         }
         // If in trade phase trade move for every card in hand
         if self.need_trade() {
-            for card in hand.iter().sorted().dedup() {
+            for card in hand {
                 moves.push(TacMove::new(*card, TacAction::Trade, played_by, played_by));
             }
             return moves;
@@ -36,10 +36,10 @@ impl Board {
 
         // If we are forced to discard, either respond with tac or discard any card in hand
         if self.force_discard() {
-            if hand.iter().any(|c| matches!(c, Card::Tac)) {
+            if self.hand(played_by).contains(Card::Tac) {
                 moves.extend(self.tac_moves(played_by));
             }
-            for card in hand.iter().sorted().dedup() {
+            for card in hand {
                 moves.push(TacMove::new(
                     *card,
                     TacAction::Discard,
@@ -51,13 +51,13 @@ impl Board {
         }
 
         // Compute moves for each card in hand
-        for card in hand.iter().sorted().dedup() {
+        for card in hand.clone() {
             moves.extend(self.moves_for_card(played_by, *card));
         }
 
         // We can't do anything so discard any card
         if moves.is_empty() {
-            for card in hand.iter().sorted().dedup() {
+            for card in hand {
                 moves.push(TacMove::new(
                     *card,
                     TacAction::Discard,
@@ -87,8 +87,7 @@ impl Board {
             Card::Seven => {
                 // NOTE The number of possible seven moves scales extremely unwell for 3 (~7^2) and 4 (~7^3) moveable balls
                 // Consider special casing them so move evaluation can prune them effectively with expert knowledge
-                if (!self.home(play_for).is_empty() && !self.home(play_for).is_locked()) || can_play
-                {
+                if self.home(play_for).can_move() || can_play {
                     return self.seven_moves(played_by);
                 }
             }
@@ -146,7 +145,7 @@ impl Board {
         // Moves for balls that are not locked in their home
         // Uses matching on the bit patterns that correspond to states in which there are unlocked balls
         // with enough space to move the desired amount
-        if !self.home(play_for).is_empty() && !self.home(play_for).is_locked() {
+        if self.home(play_for).can_move() {
             moves.extend(Self::home_moves_for(
                 *self.home(play_for),
                 played_by,
@@ -156,7 +155,6 @@ impl Board {
         }
 
         // Moves we can only do with balls on the board
-
         if can_play {
             moves.extend(self.moves_for_card_squares(
                 self.balls_with(play_for),
@@ -413,6 +411,7 @@ impl Board {
         let mut moves = Vec::new();
 
         if let Some(last_played) = self.last_played() {
+            assert!(!matches!(last_played, Card::Tac));
             let mut state = self.clone();
             state.tac_undo();
             moves.extend(

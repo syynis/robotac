@@ -70,6 +70,10 @@ impl Home {
         }
         res
     }
+
+    pub fn can_move(self) -> bool {
+        !(self.is_locked() || self.is_empty())
+    }
 }
 
 impl Display for Home {
