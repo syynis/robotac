@@ -114,6 +114,7 @@ impl Knowledge {
                 announce[self.observer.partner() as usize],
                 announce[self.observer.prev() as usize],
             ];
+            // This should only happen after trade happened
             self.set_openings(announce_without_observer);
             self.played_jester = false;
         }
@@ -246,6 +247,7 @@ impl Knowledge {
         if card.is_simple().is_some() {
             let ours = board.balls_with(player);
             // Get the ball with the highest distance forwards to the next ball
+            assert!(!(board.all_balls() ^ ours).is_empty());
             let max_amount_between_balls = ours
                 .iter()
                 .map(|ball| board.distance_to_next(ball))
@@ -388,14 +390,14 @@ mod tests {
     use super::*;
     #[test]
     fn announce() {
-        for seed in 0..1000 {
+        for seed in 0..100000 {
             println!("SEED {seed}");
             let mut board = Board::new_with_seed(seed);
             println!("{board:?}");
             let mut rng = StdRng::seed_from_u64(seed);
             let mut know: [_; 4] =
                 core::array::from_fn(|i| Knowledge::new_from_board(Color::from(i), &board));
-            for i in 0..10000 {
+            for i in 0..100000 {
                 let get_moves = &board.get_moves(board.current_player());
                 let Some(mv) = get_moves.iter().choose(&mut rng) else {
                     // Game over
@@ -406,16 +408,12 @@ mod tests {
                     k.update_with_move(mv, &board);
                 }
                 board.make_move(mv);
-                if seed == 267 && i == 1344 {
-                    println!("{board:?}");
-                }
             }
         }
     }
     #[test]
     fn redetermine() {
         let mut board = Board::new_with_seed(2);
-        let mut rng = StdRng::seed_from_u64(2);
         println!("{board:?}");
         let mut know: [_; 4] =
             core::array::from_fn(|i| Knowledge::new_from_board(Color::from(i), &board));
@@ -426,7 +424,6 @@ mod tests {
             let mut board = board.clone();
             board.redetermine(c, &know[i]);
             println!("REDETERMINED {c:?}\n{board:?}");
-            break;
         }
     }
 }
