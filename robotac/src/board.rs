@@ -372,8 +372,8 @@ impl Board {
             let could_be_removed = self.hands[player as usize].remove(mv.card);
             if !could_be_removed {
                 panic!(
-                    "We require the card to be in hand {:?} {:?} {:?} {}",
-                    mv.card, self.hands[player as usize], self, mv
+                    "We require the card to be in hand {:?} {:?}",
+                    mv.card, self.hands[player as usize]
                 );
             }
             self.apply_action(mv.action.clone(), mv.played_for);
