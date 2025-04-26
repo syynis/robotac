@@ -524,6 +524,15 @@ impl Board {
         self.trade_flag = true;
     }
 
+    /// Returns true if there is exactly one player that hasn't traded yet
+    pub fn is_trade_almost_finished(&self) -> bool {
+        self.traded
+            .iter()
+            .filter(|x| x.is_none())
+            .exactly_one()
+            .is_ok()
+    }
+
     /// Deal a new set of hands to each player
     pub fn deal_new(&mut self) {
         assert!(self.hands.iter().all(Hand::is_empty));

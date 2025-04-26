@@ -54,29 +54,28 @@ impl Knowledge {
                 openings[observer.partner() as usize],
                 openings[observer.prev() as usize],
             ];
-            res.set_openings(others_openings);
+            res.has_opening = others_openings;
+            res.update_after_announce();
         }
         res.update_with_hand(board.hand(observer), observer);
         res.sync();
         res
     }
 
-    pub fn set_openings(&mut self, openings: [bool; 3]) {
-        self.has_opening = openings;
-        let [next, partner, prev] = openings;
-        if !partner {
-            self.hands[1][Card::One] = CardKnowledgeKind::Exact(0);
-            self.hands[1][Card::Thirteen] = CardKnowledgeKind::Exact(0);
+    pub fn update_after_announce(&mut self) {
+        for (idx, has) in self.has_opening.iter().enumerate() {
+            if !has {
+                self.hands[idx][Card::One] = CardKnowledgeKind::Exact(0);
+                self.hands[idx][Card::Thirteen] = CardKnowledgeKind::Exact(0);
+            }
         }
-        // If both enemies have no openings we know for sure both can't have any
-        // If only one of them has no openings, we know they can have at most one (traded from partner)
+    }
+
+    pub fn update_after_trade(&mut self) {
+        let [next, partner, prev] = self.has_opening;
+        // If only one of enemies has no openings, we know they can have at most one (traded from partner)
         // TODO use this information to know when the enemy with no openings played one, we know he can't have any more
-        if !next && !prev {
-            self.hands[0][Card::One] = CardKnowledgeKind::Exact(0);
-            self.hands[0][Card::Thirteen] = CardKnowledgeKind::Exact(0);
-            self.hands[2][Card::One] = CardKnowledgeKind::Exact(0);
-            self.hands[2][Card::Thirteen] = CardKnowledgeKind::Exact(0);
-        } else if !next {
+        if !next {
             self.hands[0][Card::One] = CardKnowledgeKind::Atmost(1);
             self.hands[0][Card::Thirteen] = CardKnowledgeKind::Atmost(1);
         } else if !prev {
@@ -114,8 +113,8 @@ impl Knowledge {
                 announce[self.observer.partner() as usize],
                 announce[self.observer.prev() as usize],
             ];
-            // This should only happen after trade happened
-            self.set_openings(announce_without_observer);
+            self.has_opening = announce_without_observer;
+            self.update_after_announce();
             self.played_jester = false;
         }
         for (card, v) in self.history {
@@ -123,6 +122,10 @@ impl Knowledge {
         }
         // Update knowledge after trade
         if matches!(mv.action, TacAction::Trade) {
+            // If this move was the last trade update info on enemy openings
+            if board.is_trade_almost_finished() {
+                self.update_after_trade();
+            }
             // Card we got
             if player == self.observer.partner() {
                 self.got_traded = Some(mv.card);
@@ -219,7 +222,6 @@ impl Knowledge {
     }
 
     pub fn discarded_no_balls_in_play(&mut self, board: &Board, player: Color) {
-        let home = *board.home(board.play_for(player));
         // All these can be played even with no balls in play
         // One and thirteen also require for there to be balls inside base
         if board.num_base(board.play_for(player)) > 0 {
@@ -229,6 +231,8 @@ impl Knowledge {
         self.rule_out(Card::Devil, player);
         self.rule_out(Card::Jester, player);
         self.rule_out(Card::Angel, player);
+
+        let home = *board.home(board.play_for(player));
         // If there are moveable balls in home
         if home.can_move() {
             // Seven can always be played with unlocked balls
