@@ -20,7 +20,7 @@ impl Board {
 
         // How many more balls do we have in goal
         let goal_cnt = self.balls_in_home(p) as i64 - self.balls_in_home(e) as i64;
-        eval += goal_cnt * 100;
+        eval += goal_cnt * 250;
 
         // Is our goal free to enter
         let free = self.home_free(p) as u8;
@@ -28,7 +28,7 @@ impl Board {
         let e_free = self.home_free(e) as u8;
         let ep_free = self.home_free(e_p) as u8;
 
-        eval += ((free + p_free) as i64 - (e_free + ep_free) as i64) * 10;
+        eval += ((free + p_free) as i64 - (e_free + ep_free) as i64) * 5;
 
         // Is our goal clean
         let clean = self.home_clean(p) as u8;
@@ -36,23 +36,22 @@ impl Board {
         let e_clean = self.home_clean(e) as u8;
         let ep_clean = self.home_clean(e_p) as u8;
 
-        eval += ((clean + p_clean) as i64 - (e_clean + ep_clean) as i64) * 5;
+        eval += ((clean + p_clean) as i64 - (e_clean + ep_clean) as i64) * 2;
 
         // How many balls do we have that are near the goal
-        let (fwd, four) = self.near_goal(p);
-        let (p_fwd, p_four) = self.near_goal(p_p);
-        let (e_fwd, e_four) = self.near_goal(e);
-        let (ep_fwd, ep_four) = self.near_goal(e_p);
-        let goal_proximity = |f, b, fr| (f * (fr + 1) * 30 + b * (fr + 1) * 15) as i64;
-        let our = goal_proximity(fwd, four, free) + goal_proximity(p_fwd, p_four, p_free);
-        let theirs =
-            goal_proximity(e_fwd, e_four, e_free) + goal_proximity(ep_fwd, ep_four, ep_free);
+        let fwd = self.near_goal(p);
+        let p_fwd = self.near_goal(p_p);
+        let e_fwd = self.near_goal(e);
+        let ep_fwd = self.near_goal(e_p);
+        let our = fwd + p_fwd;
+        let theirs = e_fwd + ep_fwd;
         eval += our - theirs;
 
         // Do we have balls in play
         eval += ((self.ball_in_play(p) as i64 + self.ball_in_play(p_p) as i64)
             - (self.ball_in_play(e) as i64 + self.ball_in_play(e_p) as i64))
             * 50;
+        println!("{eval}");
         eval
     }
 
@@ -77,27 +76,76 @@ impl Board {
         self.home(player).amount() + self.home(player.partner()).amount()
     }
 
-    fn near_goal(&self, player: Color) -> (u8, u8) {
+    fn near_goal(&self, player: Color) -> i64 {
         let mine = self.balls_with(player);
+        let in_four_proximity = self
+            .moves_for_card_squares(mine, player, player, tac_types::Card::Four)
+            .iter()
+            .any(|mv| matches!(mv.action, tac_types::TacAction::StepInHome { .. }));
 
-        let in_fwd_proximity =
-            |start: Square, player: Color| -> bool { start.distance_to_home(player) < 13 };
+        let fwd = |start: Square, player: Color| -> i64 {
+            let dist = start.distance_to_home(player);
+            let dist = if dist == 0 && self.fresh(player) {
+                64
+            } else {
+                dist
+            };
+            let dist_factor = (1.0 - ((dist as f32) / 64.0)).powi(2);
+            (20.0 * dist_factor) as i64 + if dist < 13 { 10 } else { 0 }
+        };
 
-        let in_four_proximity =
-            |start: Square, player: Color| -> bool { start.distance_to_home(player) > 60 };
-
-        let count = |bb: BitBoard, color: Color| -> (u8, u8) {
+        let count = |bb: BitBoard, color: Color| -> i64 {
             // Cast is valid in all cases because iterating bitboard
             // can return square with value at most 64
-            (
-                bb.iter()
-                    .filter(|ball| in_fwd_proximity(*ball, color))
-                    .count() as u8,
-                bb.iter()
-                    .filter(|ball| in_four_proximity(*ball, color))
-                    .count() as u8,
-            )
+            bb.iter().map(|sq| fwd(sq, color)).sum::<i64>()
         };
         count(mine, player)
+    }
+
+    fn capturability(&self, player: Color) -> i64 {
+        // TODO
+        // Should also take into account how valueable the balls are
+        let enemies = self.balls_with(player.prev()) | self.balls_with(player.next());
+
+        self.balls_with(player)
+            .into_iter()
+            .map(|m| {
+                enemies
+                    .iter()
+                    .filter(|enemy| {
+                        let enemy_me = enemy.distance_to(m);
+                        let me_enemy = m.distance_to(*enemy);
+                        // Enemy can is in distance to potentially capture us
+                        let can_reach = enemy_me < 14 && self.can_move(*enemy, m);
+                        // Enemy can play for to capture us
+                        let can_reach_four = me_enemy == 4 && self.can_move(m, *enemy);
+                        // Enemy can play seven to capture us. Seperately because we don't need `can_move` check
+                        let can_reach_seven = enemy_me < 8;
+                        // Eleven is always save
+                        let eleven = enemy_me == 11;
+                        can_reach || can_reach_four || can_reach_seven && !eleven
+                    })
+                    .count() as i64
+            })
+            .sum::<i64>()
+    }
+
+    // Amount of cards we can play
+    fn mobility(&self, player: Color) -> i64 {
+        self.balls_with(player)
+            .into_iter()
+            .map(|m| {
+                let next = self.distance_to_next(m);
+                let home = m.distance_to_home(player);
+                // Don't want to overstep home so if we are closer to home than next ball take that distance as our mobility instead
+                // NOTE the tradeoff is that we are slightly discouraging going towards goal but hopefully this is handled by exploring deeper
+                let dist = if next > home {
+                    home + self.home(player).free()
+                } else {
+                    next
+                };
+                (dist * 3) as i64
+            })
+            .sum::<i64>()
     }
 }

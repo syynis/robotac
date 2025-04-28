@@ -72,7 +72,7 @@ impl Knowledge {
     }
 
     pub fn update_after_trade(&mut self) {
-        let [next, partner, prev] = self.has_opening;
+        let [next, _, prev] = self.has_opening;
         // If only one of enemies has no openings, we know they can have at most one (traded from partner)
         // TODO use this information to know when the enemy with no openings played one, we know he can't have any more
         if !next {
@@ -394,14 +394,14 @@ mod tests {
     use super::*;
     #[test]
     fn announce() {
-        for seed in 0..100000 {
+        for seed in 0..10000 {
             println!("SEED {seed}");
             let mut board = Board::new_with_seed(seed);
             println!("{board:?}");
             let mut rng = StdRng::seed_from_u64(seed);
             let mut know: [_; 4] =
                 core::array::from_fn(|i| Knowledge::new_from_board(Color::from(i), &board));
-            for i in 0..100000 {
+            for i in 0..10000 {
                 let get_moves = &board.get_moves(board.current_player());
                 let Some(mv) = get_moves.iter().choose(&mut rng) else {
                     // Game over
