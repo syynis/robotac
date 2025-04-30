@@ -2,6 +2,14 @@ use tac_types::{BitBoard, Color, Square};
 
 use crate::board::Board;
 
+const WIN: i64 = 10000;
+const IN_HOME: i64 = 250;
+const HOME_FREE: i64 = 5;
+const HOME_CLEAN: i64 = 2;
+const IN_PLAY: i64 = 50;
+const FWD_DIST_MAX: i64 = 20;
+const FWD_IN_HOME: i64 = 10;
+
 #[allow(clippy::cast_possible_truncation)]
 #[allow(clippy::cast_lossless)]
 impl Board {
@@ -13,14 +21,14 @@ impl Board {
         let p_p = self.current_player().partner();
         let e_p = self.current_player().next().partner();
         if self.won(p) {
-            return 10000;
+            return WIN;
         } else if self.won(e) {
-            return -10000;
+            return -WIN;
         }
 
         // How many more balls do we have in goal
         let goal_cnt = self.balls_in_home(p) as i64 - self.balls_in_home(e) as i64;
-        eval += goal_cnt * 250;
+        eval += goal_cnt * IN_HOME;
 
         // Is our goal free to enter
         let free = self.home_free(p) as u8;
@@ -28,7 +36,7 @@ impl Board {
         let e_free = self.home_free(e) as u8;
         let ep_free = self.home_free(e_p) as u8;
 
-        eval += ((free + p_free) as i64 - (e_free + ep_free) as i64) * 5;
+        eval += ((free + p_free) as i64 - (e_free + ep_free) as i64) * HOME_FREE;
 
         // Is our goal clean
         let clean = self.home_clean(p) as u8;
@@ -36,7 +44,7 @@ impl Board {
         let e_clean = self.home_clean(e) as u8;
         let ep_clean = self.home_clean(e_p) as u8;
 
-        eval += ((clean + p_clean) as i64 - (e_clean + ep_clean) as i64) * 2;
+        eval += ((clean + p_clean) as i64 - (e_clean + ep_clean) as i64) * HOME_CLEAN;
 
         // How many balls do we have that are near the goal
         let fwd = self.near_goal(p);
@@ -50,7 +58,7 @@ impl Board {
         // Do we have balls in play
         eval += ((self.ball_in_play(p) as i64 + self.ball_in_play(p_p) as i64)
             - (self.ball_in_play(e) as i64 + self.ball_in_play(e_p) as i64))
-            * 50;
+            * IN_PLAY;
         println!("{eval}");
         eval
     }
@@ -91,7 +99,7 @@ impl Board {
                 dist
             };
             let dist_factor = (1.0 - ((dist as f32) / 64.0)).powi(2);
-            (20.0 * dist_factor) as i64 + if dist < 13 { 10 } else { 0 }
+            (FWD_DIST_MAX as f32 * dist_factor) as i64 + if dist < 13 { FWD_IN_HOME } else { 0 }
         };
 
         let count = |bb: BitBoard, color: Color| -> i64 {
@@ -130,7 +138,8 @@ impl Board {
             .sum::<i64>()
     }
 
-    // Amount of cards we can play
+    /// A measure of the amount of cards we can play
+    /// Returns the sum of distances to next ball for each ball belonging to `player`
     fn mobility(&self, player: Color) -> i64 {
         self.balls_with(player)
             .into_iter()
@@ -144,7 +153,7 @@ impl Board {
                 } else {
                     next
                 };
-                (dist * 3) as i64
+                dist.clamp(0, 13) as i64
             })
             .sum::<i64>()
     }
