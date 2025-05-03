@@ -52,7 +52,7 @@ pub struct App {
     board: Board,
     history: History,
     mode: Mode,
-    ai: Manager<TacAI>,
+    ai: Manager<TacAI, 4>,
     board_view: BoardView,
     move_list: MoveList,
     debug: DebugView,

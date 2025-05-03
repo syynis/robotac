@@ -14,7 +14,7 @@ impl AiDebugView {
         None
     }
 
-    pub fn draw(&self, ai: &Manager<TacAI>) -> impl Widget + '_ {
+    pub fn draw(&self, ai: &Manager<TacAI, 4>) -> impl Widget + '_ {
         let mut string = String::new();
         for s in ai.stats() {
             string.push_str(&format!("{:?}\n", s));

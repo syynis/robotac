@@ -2,7 +2,8 @@ use mcts::{manager::Manager, policies::UCTPolicy};
 use robotac::{board::Board, TacAI, TacEval};
 
 fn main() {
-    let mut mcts = Manager::new(Board::new_with_seed(0), TacAI, UCTPolicy(1000.0), TacEval);
+    let mut mcts: Manager<TacAI, 4> =
+        Manager::new(Board::new_with_seed(0), TacAI, UCTPolicy(1000.0), TacEval);
     println!("{:?}", mcts.tree().root_state());
 
     (0..24).for_each(|_| {
