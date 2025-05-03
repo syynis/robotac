@@ -162,3 +162,40 @@ impl Not for BitBoard {
         Self(!self.0)
     }
 }
+
+pub struct BitBoardGen {
+    seed: u64,
+    max: u8,
+}
+
+impl Default for BitBoardGen {
+    fn default() -> Self {
+        Self { seed: 0, max: 64 }
+    }
+}
+
+impl BitBoardGen {
+    pub fn gen(&self) -> BitBoard {
+        loop {
+            let mut base = rand::random::<u64>();
+            base &= rand::random::<u64>(); // 32
+            base &= rand::random::<u64>(); // 16
+            if base & 7 > 0 {
+                base &= rand::random::<u64>();
+            }
+            if base & 3 > 0 {
+                base &= rand::random::<u64>();
+            }
+            if base & 1 > 0 {
+                base &= rand::random::<u64>();
+            }
+            if base.count_ones() <= self.max as u32 {
+                return BitBoard(base);
+            }
+        }
+    }
+
+    pub fn with_max(self, max: u8) -> Self {
+        Self { max, ..self }
+    }
+}

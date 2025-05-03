@@ -4,11 +4,14 @@ use crate::board::Board;
 
 const WIN: i64 = 10000;
 const IN_HOME: i64 = 250;
-const HOME_FREE: i64 = 5;
-const HOME_CLEAN: i64 = 2;
-const IN_PLAY: i64 = 50;
-const FWD_DIST_MAX: i64 = 20;
-const FWD_IN_HOME: i64 = 10;
+const HOME_FREE: i64 = 13;
+const HOME_CLEAN: i64 = 4;
+const IN_PLAY: i64 = 28;
+const FWD_DIST_MAX: i64 = 17;
+const FWD_IN_HOME: i64 = 21;
+const MOBILITY: i64 = 2;
+const CAPTURABILITY: i64 = 12;
+const FOUR_PROXIMITY: i64 = 23;
 
 #[allow(clippy::cast_possible_truncation)]
 #[allow(clippy::cast_lossless)]
@@ -36,7 +39,8 @@ impl Board {
         let e_free = self.home_free(e) as u8;
         let ep_free = self.home_free(e_p) as u8;
 
-        eval += ((free + p_free) as i64 - (e_free + ep_free) as i64) * HOME_FREE;
+        let free = ((free + p_free) as i64 - (e_free + ep_free) as i64) * HOME_FREE;
+        eval += free;
 
         // Is our goal clean
         let clean = self.home_clean(p) as u8;
@@ -44,7 +48,8 @@ impl Board {
         let e_clean = self.home_clean(e) as u8;
         let ep_clean = self.home_clean(e_p) as u8;
 
-        eval += ((clean + p_clean) as i64 - (e_clean + ep_clean) as i64) * HOME_CLEAN;
+        let clean = ((clean + p_clean) as i64 - (e_clean + ep_clean) as i64) * HOME_CLEAN;
+        eval += clean;
 
         // How many balls do we have that are near the goal
         let fwd = self.near_goal(p);
@@ -56,10 +61,24 @@ impl Board {
         eval += our - theirs;
 
         // Do we have balls in play
-        eval += ((self.ball_in_play(p) as i64 + self.ball_in_play(p_p) as i64)
+        let in_play = ((self.ball_in_play(p) as i64 + self.ball_in_play(p_p) as i64)
             - (self.ball_in_play(e) as i64 + self.ball_in_play(e_p) as i64))
             * IN_PLAY;
-        println!("{eval}");
+        eval += in_play;
+
+        let capturability = (self.capturability(e) + self.capturability(e_p))
+            - (self.capturability(p) + self.capturability(p_p));
+        eval += capturability;
+
+        let mobility =
+            (self.mobility(p) + self.mobility(p_p)) - (self.mobility(e) + self.mobility(e_p));
+        eval += mobility;
+        // println!("free {free}");
+        // println!("clean {clean}");
+        // println!("near goal {}", our - theirs);
+        // println!("play {in_play}");
+        // println!("cap: {capturability}");
+        // println!("mob: {mobility}");
         eval
     }
 
@@ -84,12 +103,17 @@ impl Board {
         self.home(player).amount() + self.home(player.partner()).amount()
     }
 
+    fn count(bb: BitBoard, color: Color, f: impl Fn(Square, Color) -> i64) -> i64 {
+        bb.iter().map(|sq| f(sq, color)).sum::<i64>()
+    }
+
     fn near_goal(&self, player: Color) -> i64 {
         let mine = self.balls_with(player);
         let in_four_proximity = self
             .moves_for_card_squares(mine, player, player, tac_types::Card::Four)
             .iter()
             .any(|mv| matches!(mv.action, tac_types::TacAction::StepInHome { .. }));
+        let in_four_proximity = if in_four_proximity { FOUR_PROXIMITY } else { 0 };
 
         let fwd = |start: Square, player: Color| -> i64 {
             let dist = start.distance_to_home(player);
@@ -102,12 +126,7 @@ impl Board {
             (FWD_DIST_MAX as f32 * dist_factor) as i64 + if dist < 13 { FWD_IN_HOME } else { 0 }
         };
 
-        let count = |bb: BitBoard, color: Color| -> i64 {
-            // Cast is valid in all cases because iterating bitboard
-            // can return square with value at most 64
-            bb.iter().map(|sq| fwd(sq, color)).sum::<i64>()
-        };
-        count(mine, player)
+        Self::count(mine, player, fwd) + in_four_proximity
     }
 
     fn capturability(&self, player: Color) -> i64 {
@@ -136,6 +155,7 @@ impl Board {
                     .count() as i64
             })
             .sum::<i64>()
+            * CAPTURABILITY
     }
 
     /// A measure of the amount of cards we can play
@@ -156,5 +176,22 @@ impl Board {
                 dist.clamp(0, 13) as i64
             })
             .sum::<i64>()
+            * MOBILITY
+    }
+}
+
+mod tests {
+    use tac_types::ALL_COLORS;
+
+    use super::*;
+
+    #[test]
+    fn eval() {
+        let mut rand_board = Board::new_random_state(0);
+        println!("{:?}", rand_board);
+        for color in ALL_COLORS.iter().step_by(3) {
+            rand_board.set_player(*color);
+            println!("{:?} {}", color, rand_board.eval());
+        }
     }
 }

@@ -24,6 +24,7 @@ criterion = "*"
 
 [profile.dev]
 opt-level = 1
+incremental = true
 
 [profile.dev.package."*"]
 opt-level = 3

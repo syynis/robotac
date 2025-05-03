@@ -54,7 +54,7 @@ impl Home {
 
     #[must_use]
     pub const fn get_single_unlocked(self) -> Option<u8> {
-        if !self.is_locked() && !self.is_empty() {
+        if self.can_move() {
             return Some(self.free());
         }
         None
@@ -71,7 +71,7 @@ impl Home {
         res
     }
 
-    pub fn can_move(self) -> bool {
+    pub const fn can_move(self) -> bool {
         !(self.is_locked() || self.is_empty())
     }
 }

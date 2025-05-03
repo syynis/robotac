@@ -1,10 +1,15 @@
 use std::{ops::BitXor, option::Option};
 
 use itertools::Itertools;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{
+    rngs::StdRng,
+    seq::{IteratorRandom, SliceRandom},
+    thread_rng, Rng, SeedableRng,
+};
 use smallvec::SmallVec;
 use tac_types::{
-    BitBoard, Card, Color, Deck, Hand, Home, SevenAction, Square, TacAction, TacMove, ALL_COLORS,
+    BitBoard, BitBoardGen, Card, Color, Deck, Hand, Home, SevenAction, Square, TacAction, TacMove,
+    ALL_COLORS,
 };
 
 use crate::knowledge::Knowledge;
@@ -116,6 +121,36 @@ impl Board {
         };
 
         s.deal_new();
+        s
+    }
+
+    pub fn new_random_state(seed: u64) -> Self {
+        let mut s = Self::new_with_seed(seed);
+
+        // Generate random bitboard, iterate through all its bits as squares and set them to random colors
+        let mut rng = StdRng::seed_from_u64(seed);
+        let bb = BitBoardGen::default().with_max(16).gen();
+        for sq in bb.iter() {
+            let color = loop {
+                let c = ALL_COLORS.choose(&mut rng).cloned().unwrap_or(Color::Black);
+                if s.balls[c as usize].len() < 4 {
+                    break c;
+                }
+            };
+            s.set(sq, color);
+        }
+
+        for color in ALL_COLORS {
+            let base = s.num_base(color);
+            let num_home = (0..=base).choose(&mut rng).unwrap_or(0);
+            let home = loop {
+                let res: u8 = rng.gen_range(0..16);
+                if res.count_ones() == num_home as u32 {
+                    break res;
+                }
+            };
+            s.homes[color as usize] = Home(home);
+        }
         s
     }
     /// Put ball from given player onto the board.
@@ -536,7 +571,8 @@ impl Board {
     /// Deal a new set of hands to each player
     pub fn deal_new(&mut self) {
         assert!(self.hands.iter().all(Hand::is_empty));
-        let mut rng = StdRng::seed_from_u64(self.seed);
+        // let mut rng = StdRng::seed_from_u64(self.seed);
+        let mut rng = thread_rng();
         let dealt_cards = self.deck.deal(&mut rng);
         self.deck_fresh_flag = self.deck.fresh();
         for set in dealt_cards.chunks_exact(4) {
@@ -683,7 +719,7 @@ impl std::fmt::Debug for Board {
         write!(f, "{:?}, ", self.deck)?;
         write!(f, "\nhomes: ")?;
         for home in self.homes {
-            write!(f, "{:#b}, ", home.0)?;
+            write!(f, "{:#06b}, ", home.0)?;
         }
         write!(f, "\n1/13: ")?;
         for one_or_thirteen in self.one_or_thirteen {
