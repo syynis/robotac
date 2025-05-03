@@ -72,3 +72,14 @@ impl Square {
         }
     }
 }
+
+mod tests {
+    use crate::ALL_COLORS;
+
+    #[test]
+    fn dist_home() {
+        for color in ALL_COLORS {
+            assert_eq!(color.home().distance_to_home(color), 0);
+        }
+    }
+}

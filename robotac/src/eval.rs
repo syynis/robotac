@@ -3,7 +3,7 @@ use tac_types::{BitBoard, Color, Square};
 use crate::board::Board;
 
 const WIN: i64 = 10000;
-const IN_HOME: i64 = 250;
+const IN_HOME: i64 = 500;
 const HOME_FREE: i64 = 13;
 const HOME_CLEAN: i64 = 4;
 const IN_PLAY: i64 = 28;
@@ -73,12 +73,18 @@ impl Board {
         let mobility =
             (self.mobility(p) + self.mobility(p_p)) - (self.mobility(e) + self.mobility(e_p));
         eval += mobility;
+
+        let backup = (self.balls_with(p).len() + self.balls_with(p_p).len()) as i64
+            - (self.balls_with(e).len() + self.balls_with(e_p).len()) as i64;
+        let backup = backup * 12;
+        eval += backup;
         // println!("free {free}");
         // println!("clean {clean}");
         // println!("near goal {}", our - theirs);
         // println!("play {in_play}");
         // println!("cap: {capturability}");
         // println!("mob: {mobility}");
+        // println!("back: {backup}");
         eval
     }
 

@@ -571,8 +571,8 @@ impl Board {
     /// Deal a new set of hands to each player
     pub fn deal_new(&mut self) {
         assert!(self.hands.iter().all(Hand::is_empty));
-        // let mut rng = StdRng::seed_from_u64(self.seed);
-        let mut rng = thread_rng();
+        let mut rng = StdRng::seed_from_u64(self.seed);
+        // let mut rng = thread_rng();
         let dealt_cards = self.deck.deal(&mut rng);
         self.deck_fresh_flag = self.deck.fresh();
         for set in dealt_cards.chunks_exact(4) {
