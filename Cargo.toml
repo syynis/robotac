@@ -2,7 +2,6 @@
 members = [
   "types",
   "robotac",
-  "mcts",
   "tac-tui",
 ]
 resolver = "2"
@@ -10,17 +9,14 @@ resolver = "2"
 [workspace.dependencies]
 enum-map = {version = "2.7.3"}
 rand = {version = "0.8.5"}
-rand_xorshift = {version = "0.3"}
 itertools = {version = "0.12.1"}
 smallvec = {version = "2.0.0-alpha.6", features = ["serde"]}
-rayon = {version = "1.1"}
-crossbeam = {version = "0.8.4"}
 ratatui = "*"
 clap = "*"
-vek = "*"
 serde = {version = "1.0.210", features = ["derive"]}
 ron = "*"
 criterion = "*"
+mcts = {git = "https://github.com/syynis/ismcts"}
 
 [profile.dev]
 opt-level = 1

@@ -582,6 +582,7 @@ dependencies = [
 [[package]]
 name = "mcts"
 version = "0.1.0"
+source = "git+https://github.com/syynis/ismcts#fc67a9e6ff51c3a3243698795c26ba309e101eff"
 dependencies = [
  "crossbeam",
  "enum-map",

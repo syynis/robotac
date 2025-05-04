@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 tac-types = {path = "../types"}
 robotac = {path = "../robotac"}
-mcts = {path = "../mcts"}
+mcts = {workspace = true}
 itertools = {workspace = true}
 smallvec = {workspace = true}
 ratatui = {workspace = true}
