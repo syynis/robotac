@@ -109,6 +109,16 @@ impl ExactSizeIterator for BitBoardIter {
     }
 }
 
+impl FromIterator<Square> for BitBoard {
+    fn from_iter<T: IntoIterator<Item = Square>>(iter: T) -> Self {
+        let mut res = BitBoard::EMPTY;
+        for sq in iter {
+            res |= sq.bitboard();
+        }
+        res
+    }
+}
+
 macro_rules! impl_math_ops {
     ($($trait:ident, $fn:ident;)*) => {$(
         impl $trait for BitBoard {

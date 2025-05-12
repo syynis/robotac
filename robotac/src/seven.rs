@@ -34,23 +34,40 @@ fn moves_for_budget(
 }
 
 impl Board {
-    #[allow(clippy::too_many_lines)]
-    pub(crate) fn seven_moves(&self, player: Color) -> Vec<TacMove> {
-        // TODO Some thoughts about generating seven moves
-        // This still needs to take into account moves that go from ring to home
+    pub fn seven_moves(&self, player: Color) -> Vec<TacMove> {
         let play_for = self.play_for(player);
+        let balls = self.balls_with(play_for);
+        let moves = self.seven_moves_inner(player, play_for, balls, 7);
+        moves
+            .into_iter()
+            .map(|(steps, partner_idx)| {
+                TacMove::new(
+                    Card::Seven,
+                    TacAction::SevenSteps { steps, partner_idx },
+                    play_for,
+                    player,
+                )
+            })
+            .collect()
+    }
+    #[allow(clippy::too_many_lines)]
+    pub fn seven_moves_inner(
+        &self,
+        player: Color,
+        play_for: Color,
+        balls: BitBoard,
+        initial_budget: u8,
+    ) -> Vec<(SmallVec<SevenAction, 4>, Option<usize>)> {
         let mut moves = Vec::new();
-        let num_balls = self.balls_with(play_for).len();
         let home = *self.home(play_for);
-        let balls_bb = self.balls_with(play_for);
         let can_move_home = home.can_move();
-        let max_home = if can_move_home { 8 } else { 1 };
-        let budget_start = if num_balls > 0 { 0 } else { 7 };
+        let max_home = if can_move_home { initial_budget + 1 } else { 1 };
+        let budget_start = if balls.is_empty() { initial_budget } else { 0 };
         let fresh = self.fresh(play_for);
         let min_board_budget = (1..8)
             .find(|budget| {
-                balls_bb.iter().any(|b| {
-                    let dist = b.distance_to_home(player);
+                balls.iter().any(|b| {
+                    let dist = b.distance_to_home(play_for);
                     dist <= (budget - 1) && !self.fresh(play_for)
                 })
             })
@@ -60,19 +77,12 @@ impl Board {
             let mut home_moves = get_home_moves_with_budget(home, home_budget);
 
             // If our budget is entirely for home moves don't check for ring moves
-            if home_budget == 7 {
-                moves.extend(home_moves.into_iter().map(|steps| {
-                    TacMove::new(
-                        Card::Seven,
-                        TacAction::SevenSteps { steps },
-                        play_for,
-                        player,
-                    )
-                }));
+            if home_budget == initial_budget {
+                moves.extend(home_moves.into_iter().map(|mv| (mv, None)));
                 return moves;
             }
 
-            let board_budget = 7 - home_budget;
+            let board_budget = initial_budget - home_budget;
 
             let mut step_in_home_moves: SmallVec<(SmallVec<SevenAction, 4>, u8, BitBoard), 4> =
                 SmallVec::new();
@@ -80,14 +90,14 @@ impl Board {
                 home_moves.push(SmallVec::new());
             }
             for home_mvs in &home_moves {
-                step_in_home_moves.push((home_mvs.clone(), board_budget, balls_bb));
+                step_in_home_moves.push((home_mvs.clone(), board_budget, balls));
             }
 
             if board_budget >= min_board_budget {
                 get_step_in_home_moves(
                     play_for,
                     home,
-                    balls_bb,
+                    balls,
                     can_move_home,
                     &home_moves,
                     board_budget,
@@ -104,37 +114,65 @@ impl Board {
                     });
                 }
             };
-            let mut combinations: SmallVec<SmallVec<SevenAction, 4>, 64> = SmallVec::new();
+            let mut combinations: SmallVec<(SmallVec<SevenAction, 4>, Option<usize>), 128> =
+                SmallVec::new();
             for (actions, remaining_budget, balls) in step_in_home_moves {
                 let balls: SmallVec<Square, 4> = balls.iter().collect();
                 match balls.len() {
                     0 => {
                         if remaining_budget == 0 {
-                            combinations.push(actions);
+                            combinations.push((actions, None));
                         } else {
                             // If there are no balls in ring or base all must be in home
                             // Then if we are not playing for partner we can use remaining budget
                             // to move their balls
                             if self.num_base(play_for) == 0 && play_for == player {
-                                let partner_balls = self.balls_with(player.partner());
-                                let partner_home = self.home(player.partner()).clone();
-                                if partner_home.can_move() {
-                                    for partner_home_budget in 0..8 {
-                                        let mut partner_home_moves = get_home_moves_with_budget(
-                                            partner_home,
-                                            partner_home_budget,
-                                        );
-                                    }
+                                // Some sanity checks
+                                assert!(actions
+                                    .iter()
+                                    .any(|a| matches!(a, SevenAction::StepInHome { .. })));
+                                for a in &actions {
+                                    assert!(matches!(
+                                        a,
+                                        SevenAction::StepInHome { .. }
+                                            | SevenAction::StepHome { .. }
+                                    ));
                                 }
-                                // TODO here we should check if we can move partners balls because
-                                // Optimally we would just call `seven_moves` here but that would need a bunch of changes
+                                let partner = player.partner();
+                                let partner_balls = self.balls_with(partner);
+                                // We filter out balls which would be captured by the moves made to enter home in the first place
+                                let partner_balls_after_moves = partner_balls
+                                    .iter()
+                                    .filter(|ball| {
+                                        !actions.iter().any(|a| {
+                                            if let SevenAction::StepInHome { from, .. } = a {
+                                                ball.in_range(*from, player.home())
+                                            } else {
+                                                false
+                                            }
+                                        })
+                                    })
+                                    .collect::<BitBoard>();
+
+                                for (mv, partner_idx) in self.seven_moves_inner(
+                                    player,
+                                    partner,
+                                    partner_balls_after_moves,
+                                    remaining_budget,
+                                ) {
+                                    assert!(partner_idx.is_none());
+                                    combinations.push((
+                                        [actions.clone(), mv].concat().into(),
+                                        Some(actions.len()),
+                                    ));
+                                }
                             }
                         }
                     }
                     1 => {
                         let mut res = actions.clone();
                         push(&mut res, balls[0], remaining_budget);
-                        combinations.push(res);
+                        combinations.push((res, None));
                     }
                     2 => {
                         for i in 0..=remaining_budget {
@@ -143,7 +181,7 @@ impl Board {
                             let mut res = actions.clone();
                             push(&mut res, balls[0], i);
                             push(&mut res, balls[1], j);
-                            combinations.push(res);
+                            combinations.push((res, None));
                         }
                     }
                     3 => {
@@ -154,7 +192,7 @@ impl Board {
                                 push(&mut res, balls[0], i);
                                 push(&mut res, balls[1], j);
                                 push(&mut res, balls[2], k);
-                                combinations.push(res);
+                                combinations.push((res, None));
                             }
                         }
                     }
@@ -168,7 +206,7 @@ impl Board {
                                     push(&mut res, balls[1], j);
                                     push(&mut res, balls[2], k);
                                     push(&mut res, balls[3], l);
-                                    combinations.push(res);
+                                    combinations.push((res, None));
                                 }
                             }
                         }
@@ -176,15 +214,7 @@ impl Board {
                     _ => unreachable!(),
                 }
             }
-
-            moves.extend(combinations.into_iter().map(|steps| {
-                TacMove::new(
-                    Card::Seven,
-                    TacAction::SevenSteps { steps },
-                    play_for,
-                    player,
-                )
-            }));
+            moves.extend(combinations.into_iter());
         }
         moves
     }

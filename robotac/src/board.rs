@@ -457,16 +457,29 @@ impl Board {
             }
             TacAction::Devil => self.devil_flag = true,
             TacAction::Discard => self.discard_flag = false,
-            TacAction::SevenSteps { steps } => {
-                for s in &steps {
+            TacAction::SevenSteps { steps, partner_idx } => {
+                let partner_idx = partner_idx.unwrap_or(steps.len());
+                let steps = steps
+                    .into_iter()
+                    .enumerate()
+                    .map(|(idx, s)| {
+                        let play_for = if idx < partner_idx {
+                            player
+                        } else {
+                            player.partner()
+                        };
+                        (s, play_for)
+                    })
+                    .collect_vec();
+                for (s, play_for) in &steps {
                     match s {
                         // Can't do full move here, because of how we handle capturing below
-                        SevenAction::Step { from, .. } => self.unset(*from, player),
+                        SevenAction::Step { from, .. } => self.unset(*from, *play_for),
                         SevenAction::StepHome { from, to } => {
-                            self.move_ball_in_goal(*from, *to, player);
+                            self.move_ball_in_goal(*from, *to, *play_for);
                         }
                         SevenAction::StepInHome { from, to } => {
-                            self.move_ball_to_goal(*from, *to, player);
+                            self.move_ball_to_goal(*from, *to, *play_for);
                         }
                     }
                 }
@@ -474,9 +487,11 @@ impl Board {
                 let mut board_steps: SmallVec<_, 4> = steps
                     .clone()
                     .into_iter()
-                    .filter_map(|s| match s {
-                        SevenAction::Step { from, to } => Some((from, to, false)),
-                        SevenAction::StepInHome { from, .. } => Some((from, player.home(), true)),
+                    .filter_map(|(s, play_for)| match s {
+                        SevenAction::Step { from, to } => Some((from, to, false, play_for)),
+                        SevenAction::StepInHome { from, .. } => {
+                            Some((from, play_for.home(), true, play_for))
+                        }
                         SevenAction::StepHome { .. } => None,
                     })
                     .collect();
@@ -484,17 +499,20 @@ impl Board {
                 board_steps = board_steps
                     .iter()
                     .enumerate()
-                    .filter_map(|(idx, (s, e, g))| {
-                        (*g || !board_steps.iter().enumerate().any(|(idx2, (s2, e2, _))| {
-                            idx != idx2 && s.in_range(*s2, *e2) && e.in_range(*s2, *e2)
-                        }))
-                        .then_some((*s, *e, *g))
+                    .filter_map(|(idx, (s, e, g, p))| {
+                        (*g || !board_steps
+                            .iter()
+                            .enumerate()
+                            .any(|(idx2, (s2, e2, _, _))| {
+                                idx != idx2 && s.in_range(*s2, *e2) && e.in_range(*s2, *e2)
+                            }))
+                        .then_some((*s, *e, *g, *p))
                     })
                     .collect();
                 let mut change = true;
                 while change {
                     change = false;
-                    for (s, e, _) in &mut board_steps {
+                    for (s, e, _, _) in &mut board_steps {
                         if s != e {
                             // Step one square forwards
                             let next = s.add(1);
@@ -505,9 +523,9 @@ impl Board {
                     }
                 }
                 // Finally finish step moves by setting at destination
-                for (_, e, g) in &board_steps {
+                for (_, e, g, p) in board_steps.into_iter() {
                     if !g {
-                        self.set(*e, player);
+                        self.set(e, p);
                     }
                 }
             }
@@ -783,6 +801,7 @@ mod tests {
                     from: Square(0),
                     to: Square(7),
                 }],
+                partner_idx: None,
             },
             Black,
             Black,
@@ -835,6 +854,7 @@ mod tests {
                         to: Square(48),
                     },
                 ],
+                partner_idx: None,
             },
             Green,
             Green,
@@ -846,6 +866,7 @@ mod tests {
                     from: Square(60),
                     to: Square(3),
                 }],
+                partner_idx: None,
             },
             Red,
             Red,
@@ -864,6 +885,7 @@ mod tests {
                         to: 0,
                     },
                 ],
+                partner_idx: None,
             },
             Black,
             Black,

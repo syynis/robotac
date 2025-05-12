@@ -187,9 +187,8 @@ impl Board {
 }
 
 mod tests {
-    use tac_types::ALL_COLORS;
-
-    use super::*;
+    use crate::*;
+    use tac_types::*;
 
     #[test]
     fn eval() {

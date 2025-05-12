@@ -7,19 +7,37 @@ use crate::{square::Square, Card, Color};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TacAction {
-    Step { from: Square, to: Square },
+    Step {
+        from: Square,
+        to: Square,
+    },
     // TODO HomeSquare type
-    StepHome { from: u8, to: u8 },
-    StepInHome { from: Square, to: u8 },
-    Trickster { target1: Square, target2: Square },
+    StepHome {
+        from: u8,
+        to: u8,
+    },
+    StepInHome {
+        from: Square,
+        to: u8,
+    },
+    Trickster {
+        target1: Square,
+        target2: Square,
+    },
     Enter,
     Suspend,
     Jester,
     Devil,
-    Warrior { from: Square, to: Square },
+    Warrior {
+        from: Square,
+        to: Square,
+    },
     Discard,
     Trade,
-    SevenSteps { steps: SmallVec<SevenAction, 4> },
+    SevenSteps {
+        steps: SmallVec<SevenAction, 4>,
+        partner_idx: Option<usize>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -47,7 +65,7 @@ impl Display for TacAction {
             TacAction::Warrior { from, to } => {
                 write!(f, "Warrior {} {}", from.0, to.0)?;
             }
-            TacAction::SevenSteps { steps } => {
+            TacAction::SevenSteps { steps, .. } => {
                 for (idx, s) in steps.iter().enumerate() {
                     if idx == steps.len() - 1 {
                         write!(f, "{s}")?;
