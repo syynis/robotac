@@ -4,6 +4,8 @@ use tac_types::{Card, Color, Hand, TacAction, TacMove, CARDS};
 
 use crate::board::Board;
 
+// TODO Currently there are a lot of pitfalls because the knowledge of traded cards
+// is not integrated into `CardKnowledgKind`. This lead to a lot of logic bugs and should be done
 #[derive(Clone, Copy)]
 pub struct Knowledge {
     // Owner
@@ -26,6 +28,7 @@ pub struct Knowledge {
 enum CardKnowledgeKind {
     #[default]
     Unknown,
+    // NOTE this variant will only ever hold 1 because it's only used for tracking announce info
     Atmost(u8),
     Exact(u8),
 }
@@ -75,12 +78,22 @@ impl Knowledge {
         let [next, _, prev] = self.has_opening;
         // If only one of enemies has no openings, we know they can have at most one (traded from partner)
         // TODO use this information to know when the enemy with no openings played one, we know he can't have any more
+        let one_possible = self.possible(Card::One);
+        let thirteen_possible = self.possible(Card::Thirteen);
         if !next {
-            self.hands[0][Card::One] = CardKnowledgeKind::Atmost(1);
-            self.hands[0][Card::Thirteen] = CardKnowledgeKind::Atmost(1);
+            if one_possible {
+                self.hands[0][Card::One] = CardKnowledgeKind::Atmost(1);
+            }
+            if thirteen_possible {
+                self.hands[0][Card::Thirteen] = CardKnowledgeKind::Atmost(1);
+            }
         } else if !prev {
-            self.hands[2][Card::One] = CardKnowledgeKind::Atmost(1);
-            self.hands[2][Card::Thirteen] = CardKnowledgeKind::Atmost(1);
+            if one_possible {
+                self.hands[2][Card::One] = CardKnowledgeKind::Atmost(1);
+            }
+            if thirteen_possible {
+                self.hands[2][Card::Thirteen] = CardKnowledgeKind::Atmost(1);
+            }
         }
     }
 
@@ -88,11 +101,7 @@ impl Knowledge {
         assert_eq!(mv.played_by, board.current_player(), "{mv}");
         let player = mv.played_by;
         // Account for when jester was played this hand
-        let has_traded_card = if self.played_jester {
-            self.observer.partner().prev()
-        } else {
-            self.observer.partner()
-        };
+        let has_traded_card = self.has_traded_card();
         // New hand
         if board.just_started() {
             for (card, v) in self.history {
@@ -144,6 +153,22 @@ impl Knowledge {
         if let Some(traded) = self.traded_away {
             if traded == mv.card && has_traded_card == player {
                 self.traded_away.take();
+                // This is copied from `update_with_card` but with history management removed
+                let card = mv.card;
+                match self.hands[self.idx(player)][card] {
+                    CardKnowledgeKind::Unknown => {}
+                    CardKnowledgeKind::Atmost(1) => {
+                        self.set_exact(card, player, 0);
+                    }
+                    CardKnowledgeKind::Atmost(x) => {
+                        assert!(x > 0);
+                        self.hands[self.idx(player)][card] = CardKnowledgeKind::Atmost(x - 1);
+                    }
+                    CardKnowledgeKind::Exact(x) => {
+                        assert!(x > 0, "{player:?} {card:?}\n{self:?}");
+                        self.set_exact(card, player, x - 1);
+                    }
+                }
             } else {
                 // Update history with card played
                 if player != self.observer {
@@ -174,12 +199,6 @@ impl Knowledge {
             assert_eq!(self.idx(next), 0);
             // Get hand of player after us
             let mut hand = board.hand(next).clone();
-            // If jester was played and card we traded away was not played yet remove card from hand
-            if self.played_jester {
-                if let Some(card) = self.traded_away {
-                    hand.remove(card);
-                }
-            }
             // Update history with hand next player
             // TODO this technically does things with knowledge not necessary, look into specializing
             self.update_with_hand(&hand, next);
@@ -191,6 +210,13 @@ impl Knowledge {
                     CardKnowledgeKind::Exact(x) => CardKnowledgeKind::Exact(x + 1),
                     CardKnowledgeKind::Atmost(_) => unreachable!(),
                 };
+            }
+            // If jester was played and card we traded away was not played yet remove one from history again
+            // to account for the fact that we counted it already when seeing it in our hand
+            if self.played_jester {
+                if let Some(card) = self.traded_away {
+                    self.history[card] -= 1;
+                }
             }
         }
 
@@ -274,7 +300,7 @@ impl Knowledge {
     }
 
     #[must_use]
-    pub fn known_cards(&self, player: Color) -> SmallVec<(Card, u8, bool), 18> {
+    pub fn known_cards(&self, player: Color) -> SmallVec<(Card, u8, bool), 6> {
         let mut cards = SmallVec::new();
         if player == self.observer {
             return cards;
@@ -328,10 +354,14 @@ impl Knowledge {
     }
 
     pub fn sync(&mut self) {
+        let traded_card_played = self.traded_card_played();
+        let traded_card_owner_idx = self.idx(self.has_traded_card());
         for card in &CARDS {
             if !self.possible(*card) {
-                self.hands.iter_mut().for_each(|hand| {
-                    if let CardKnowledgeKind::Unknown = hand[*card] {
+                self.hands.iter_mut().enumerate().for_each(|(idx, hand)| {
+                    if (traded_card_played || traded_card_owner_idx != idx)
+                        && matches!(hand[*card], CardKnowledgeKind::Unknown)
+                    {
                         hand[*card] = CardKnowledgeKind::Exact(0);
                     }
                 });
@@ -347,6 +377,22 @@ impl Knowledge {
     pub fn reset(&mut self) {
         self.hands.iter_mut().for_each(EnumMap::clear);
         self.history.clear();
+    }
+
+    pub fn traded_card_played(&self) -> bool {
+        self.traded_away.is_none()
+    }
+
+    pub fn has_traded_card(&self) -> Color {
+        if self.played_jester {
+            self.observer.partner().prev()
+        } else {
+            self.observer.partner()
+        }
+    }
+
+    pub fn traded_away(&self) -> Option<Card> {
+        self.traded_away
     }
 
     #[must_use]
@@ -417,17 +463,30 @@ mod tests {
     }
     #[test]
     fn redetermine() {
-        let mut board = Board::new_with_seed(2);
+        let seed = 0;
+        let mut board = Board::new_with_seed(0);
+        let mut rng = StdRng::seed_from_u64(0);
         println!("{board:?}");
         let mut know: [_; 4] =
             core::array::from_fn(|i| Knowledge::new_from_board(Color::from(i), &board));
-        // for k in know {
-        //     println!("{k:?}");
-        // }
+        for i in 0..123 {
+            let get_moves = &board.get_moves(board.current_player());
+            let Some(mv) = get_moves.iter().choose(&mut rng) else {
+                // Game over
+                break;
+            };
+            for k in &mut know {
+                k.update_with_move(mv, &board);
+            }
+            board.make_move(mv);
+        }
+        println!("{board:?}");
+        for k in know {
+            println!("{k:?}");
+        }
         for (i, c) in ALL_COLORS.into_iter().enumerate() {
             let mut board = board.clone();
             board.redetermine(c, &know[i]);
-            println!("REDETERMINED {c:?}\n{board:?}");
         }
     }
 }

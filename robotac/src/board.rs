@@ -634,28 +634,33 @@ impl Board {
                         acc + if exact { amount } else { 0 }
                     });
                 assert!(self.hand(player).amount() >= exact_sum as usize);
-                (player != observer)
-                    .then_some((player, self.hand(player).amount() - exact_sum as usize))
+                // TODO This is here because we don't track trade knowledge in `CardKnowledgeKind`
+                let traded = (player == knowledge.has_traded_card()
+                    && !knowledge.traded_card_played()) as usize;
+                (player != observer).then_some((
+                    player,
+                    self.hand(player).amount() - exact_sum as usize - traded,
+                ))
             })
             .collect_vec();
 
-        // Put back cards in hand back into deck
+        let mut known_cards: Vec<_> = ALL_COLORS
+            .into_iter()
+            .map(|c| knowledge.known_cards(c))
+            .collect();
         for player in ALL_COLORS {
             if player == observer {
                 continue;
             }
+            // Put back cards in hand back into deck
             for card in self.hands[player as usize].0.drain(..) {
                 self.deck.put_back(card);
             }
             assert!(self.hands[player as usize].is_empty());
-        }
-
-        // Draw cards equal to the amount put back
-        for (player, amount) in amounts {
-            assert!(player != observer);
+            // Put back cards into hand which we know must belong here
             let hand = &mut self.hands[player as usize];
-            let mut known = knowledge.known_cards(player);
-            for (card, amnt, is_exact) in &mut known {
+            let known = &mut known_cards[player as usize];
+            for (card, amnt, is_exact) in known {
                 if *is_exact {
                     (0..*amnt).for_each(|_| {
                         self.deck.take(*card);
@@ -664,20 +669,72 @@ impl Board {
                     *amnt = 0;
                 }
             }
-            (0..amount).for_each(|_| {
-                let mut drawn = self.deck.deal_one(&mut rng);
-                while known.iter().any(|(c, a, _)| *c == drawn && *a == 0) {
-                    self.deck.put_back(drawn);
-                    drawn = self.deck.deal_one(&mut rng);
+            // TODO This is here because we don't track trade knowledge in `CardKnowledgeKind`
+            if player == knowledge.has_traded_card() {
+                if let Some(traded_away) = knowledge.traded_away() {
+                    self.deck.take(traded_away);
+                    hand.push(traded_away);
                 }
-                if let Some((_, a, _)) = known.iter_mut().find(|(c, _, _)| *c == drawn) {
-                    assert!(*a > 0);
-                    *a -= 1;
-                }
-
-                hand.push(drawn);
-            });
+            }
         }
+
+        let mut deck = self.deck.clone();
+        let mut hands = self.hands.clone();
+        let mut valid = false;
+        const MAX_RETRIES: usize = 5;
+        let mut insanity_count = 0;
+        // Brute force until we drew cards in a way that satisfies all constraints
+        while !valid {
+            deck = self.deck.clone();
+            hands = self.hands.clone();
+            let mut known_cards = known_cards.clone();
+            let mut restore = false;
+            for (player, amount) in amounts.clone() {
+                assert!(player != observer);
+                let hand = &mut hands[player as usize];
+                let known = &mut known_cards[player as usize];
+                // Redraw random cards equal to amount of previously unknown which were put back
+                (0..amount).for_each(|_| {
+                    // TODO Here we should build a "partial deck" of all cards that can be drawn instead if feasible.
+                    // That would eliminiate having to brute force with retries.
+                    let mut drawn = deck.deal_one(&mut rng);
+                    let mut retries = 0;
+                    while known.iter().any(|(c, a, _)| *c == drawn && *a == 0) {
+                        deck.put_back(drawn);
+                        drawn = deck.deal_one(&mut rng);
+                        retries += 1;
+                        if retries > MAX_RETRIES {
+                            break;
+                        }
+                    }
+                    if retries > MAX_RETRIES {
+                        restore = true;
+                        return;
+                    }
+                    // NOTE This can decrease atmost only
+                    if let Some((_, a, _)) = known.iter_mut().find(|(c, _, _)| *c == drawn) {
+                        assert!(*a > 0);
+                        *a -= 1;
+                    }
+
+                    hand.push(drawn);
+                });
+                if restore {
+                    break;
+                }
+            }
+            if !restore {
+                valid = true;
+            }
+            insanity_count += 1;
+            if insanity_count > 1000 {
+                panic!(
+                    "There is a logic bug which can't be explained by unlucky assignment of cards"
+                );
+            }
+        }
+        self.hands = hands;
+        self.deck = deck;
         assert!(self
             .hand(observer)
             .iter()
