@@ -1,10 +1,3 @@
-#![warn(clippy::pedantic)]
-#![allow(
-    clippy::missing_panics_doc,
-    clippy::similar_names,
-    clippy::struct_excessive_bools,
-    clippy::inline_always
-)]
 use board::Board;
 use knowledge::Knowledge;
 use mcts::{policies::UCTPolicy, Evaluator, GameState, MCTS};

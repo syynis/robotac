@@ -174,13 +174,13 @@ impl Not for BitBoard {
 }
 
 pub struct BitBoardGen {
-    seed: u64,
+    _seed: u64,
     max: u8,
 }
 
 impl Default for BitBoardGen {
     fn default() -> Self {
-        Self { seed: 0, max: 64 }
+        Self { _seed: 0, max: 64 }
     }
 }
 

@@ -50,7 +50,6 @@ impl Board {
             })
             .collect()
     }
-    #[allow(clippy::too_many_lines)]
     pub fn seven_moves_inner(
         &self,
         player: Color,
@@ -220,6 +219,7 @@ impl Board {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn get_step_in_home_moves(
     play_for: Color,
     home: Home,
@@ -311,7 +311,6 @@ fn get_step_in_home_moves(
     }
 }
 
-#[allow(clippy::too_many_lines)]
 fn get_home_moves_with_budget(home: Home, budget: u8) -> SmallVec<SmallVec<SevenAction, 4>, 4> {
     let mut moves: SmallVec<SmallVec<(u8, u8), 4>, 4> = SmallVec::new();
     let unlocked = home.get_all_unlocked();

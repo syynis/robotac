@@ -13,8 +13,6 @@ const MOBILITY: i64 = 2;
 const CAPTURABILITY: i64 = 12;
 const FOUR_PROXIMITY: i64 = 23;
 
-#[allow(clippy::cast_possible_truncation)]
-#[allow(clippy::cast_lossless)]
 impl Board {
     #[must_use]
     pub fn eval(&self) -> i64 {
@@ -186,6 +184,7 @@ impl Board {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use crate::*;
     use tac_types::*;

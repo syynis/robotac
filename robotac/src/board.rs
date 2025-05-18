@@ -4,7 +4,7 @@ use itertools::Itertools;
 use rand::{
     rngs::StdRng,
     seq::{IteratorRandom, SliceRandom},
-    thread_rng, Rng, SeedableRng,
+    Rng, SeedableRng,
 };
 use smallvec::SmallVec;
 use tac_types::{
@@ -280,7 +280,6 @@ impl Board {
 
     /// Returns the amount of balls from a given player not in play.
     #[must_use]
-    #[allow(clippy::cast_possible_truncation)]
     pub fn num_base(&self, color: Color) -> u8 {
         // Amount of bits in a bitboard is at most 64 which fits into u8
         4 - self.home(color).amount() - self.balls_with(color).len() as u8
@@ -590,7 +589,7 @@ impl Board {
     pub fn deal_new(&mut self) {
         assert!(self.hands.iter().all(Hand::is_empty));
         let mut rng = StdRng::seed_from_u64(self.seed);
-        // let mut rng = thread_rng();
+        // let mut rng = rand::thread_rng();
         let dealt_cards = self.deck.deal(&mut rng);
         self.deck_fresh_flag = self.deck.fresh();
         for set in dealt_cards.chunks_exact(4) {
@@ -666,10 +665,10 @@ impl Board {
                 }
             }
             (0..amount).for_each(|_| {
-                let mut drawn = self.deck.draw_one(&mut rng);
+                let mut drawn = self.deck.deal_one(&mut rng);
                 while known.iter().any(|(c, a, _)| *c == drawn && *a == 0) {
                     self.deck.put_back(drawn);
-                    drawn = self.deck.draw_one(&mut rng);
+                    drawn = self.deck.deal_one(&mut rng);
                 }
                 if let Some((_, a, _)) = known.iter_mut().find(|(c, _, _)| *c == drawn) {
                     assert!(*a > 0);

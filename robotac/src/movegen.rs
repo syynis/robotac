@@ -348,7 +348,6 @@ impl Board {
     }
 
     #[must_use]
-    #[allow(clippy::missing_panics_doc)]
     pub fn trickster_moves(&self, played_by: Color, play_for: Color) -> Vec<TacMove> {
         // At most n choose 2 -> n * (n-1) / 2
         // This only gets called if there are balls on the board so the length can never be 0

@@ -73,6 +73,7 @@ impl Square {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use crate::ALL_COLORS;
 
